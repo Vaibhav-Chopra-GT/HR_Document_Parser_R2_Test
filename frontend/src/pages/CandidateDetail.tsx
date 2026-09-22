@@ -14,6 +14,12 @@ import {
   CheckCircle,
   XCircle,
   Trash2,
+  Edit3,
+  Save,
+  X,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
 } from 'lucide-react';
 import ConfidenceBar from '../components/ConfidenceBar';
 import { candidatesApi } from '../api/client';
@@ -32,6 +38,26 @@ export default function CandidateDetail() {
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   const [emailContent, setEmailContent] = useState<{ subject: string; body: string } | null>(null);
 
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    designation: '',
+    skills: [] as string[],
+  });
+  const [saving, setSaving] = useState(false);
+  const [newSkill, setNewSkill] = useState('');
+
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Skills display state
+  const [showAllSkills, setShowAllSkills] = useState(false);
+  const SKILLS_PREVIEW_COUNT = 6;
+
   const fetchCandidate = async () => {
     if (!id) return;
 
@@ -43,6 +69,20 @@ export default function CandidateDetail() {
 
       setCandidate(candidateRes.candidate);
       setAuditLogs(logsRes.logs);
+
+      // Initialize edit data
+      const c = candidateRes.candidate;
+      const skills = typeof c.skills === 'string'
+        ? JSON.parse(c.skills || '[]')
+        : c.skills || [];
+      setEditData({
+        name: c.name || '',
+        email: c.email || '',
+        phone: c.phone || '',
+        company: c.company || '',
+        designation: c.designation || '',
+        skills: skills,
+      });
     } catch (error) {
       toast.error('Failed to load candidate');
       navigate('/');
@@ -61,6 +101,19 @@ export default function CandidateDetail() {
       return;
     }
 
+    // Show confirmation modal if documents already submitted
+    if (candidate.has_pan || candidate.has_aadhaar) {
+      setShowConfirmModal(true);
+      return;
+    }
+
+    await sendDocumentRequest();
+  };
+
+  const sendDocumentRequest = async () => {
+    if (!candidate) return;
+
+    setShowConfirmModal(false);
     setRequesting(true);
     try {
       const result = await candidatesApi.requestDocuments(candidate.id);
@@ -108,6 +161,60 @@ export default function CandidateDetail() {
     }
   };
 
+  const handleStartEdit = () => {
+    if (!candidate) return;
+    const skills = typeof candidate.skills === 'string'
+      ? JSON.parse(candidate.skills || '[]')
+      : candidate.skills || [];
+    setEditData({
+      name: candidate.name || '',
+      email: candidate.email || '',
+      phone: candidate.phone || '',
+      company: candidate.company || '',
+      designation: candidate.designation || '',
+      skills: skills,
+    });
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setNewSkill('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!candidate) return;
+
+    setSaving(true);
+    try {
+      const result = await candidatesApi.update(candidate.id, editData);
+      toast.success(result.message);
+      setIsEditing(false);
+      fetchCandidate();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to save changes');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddSkill = () => {
+    if (newSkill.trim() && !editData.skills.includes(newSkill.trim())) {
+      setEditData({
+        ...editData,
+        skills: [...editData.skills, newSkill.trim()]
+      });
+      setNewSkill('');
+    }
+  };
+
+  const handleRemoveSkill = (skillToRemove: string) => {
+    setEditData({
+      ...editData,
+      skills: editData.skills.filter(s => s !== skillToRemove)
+    });
+  };
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -130,6 +237,9 @@ export default function CandidateDetail() {
   const skills = typeof candidate.skills === 'string'
     ? JSON.parse(candidate.skills || '[]')
     : candidate.skills || [];
+
+  const displayedSkills = showAllSkills ? skills : skills.slice(0, SKILLS_PREVIEW_COUNT);
+  const hasMoreSkills = skills.length > SKILLS_PREVIEW_COUNT;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -183,7 +293,37 @@ export default function CandidateDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Extracted Information */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">Extracted Information</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Extracted Information</h2>
+            {!isEditing ? (
+              <button
+                onClick={handleStartEdit}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg"
+              >
+                <Edit3 className="h-4 w-4" />
+                Edit
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCancelEdit}
+                  disabled={saving}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+                >
+                  <X className="h-4 w-4" />
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={saving}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
+                >
+                  <Save className="h-4 w-4" />
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            )}
+          </div>
 
           {candidate.extraction_status === 'failed' && (
             <div className="mb-4 p-4 bg-red-50 rounded-lg">
@@ -200,79 +340,184 @@ export default function CandidateDetail() {
           )}
 
           <div className="space-y-4">
+            {/* Email Field */}
             <div className="flex items-start gap-3">
               <Mail className="h-5 w-5 text-gray-400 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm text-gray-500">Email</p>
-                <p className="font-medium">{candidate.email || 'Not found'}</p>
-                <ConfidenceBar score={candidate.confidence_scores.email} label="" showLabel={false} />
+                {isEditing ? (
+                  <input
+                    type="email"
+                    value={editData.email}
+                    onChange={(e) => setEditData({...editData, email: e.target.value})}
+                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                ) : (
+                  <p className="font-medium">{candidate.email || 'Not found'}</p>
+                )}
+                {!isEditing && <ConfidenceBar score={candidate.confidence_scores.email} label="" showLabel={false} />}
               </div>
             </div>
 
+            {/* Phone Field */}
             <div className="flex items-start gap-3">
               <Phone className="h-5 w-5 text-gray-400 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm text-gray-500">Phone</p>
-                <p className="font-medium">{candidate.phone || 'Not found'}</p>
-                <ConfidenceBar score={candidate.confidence_scores.phone} label="" showLabel={false} />
+                {isEditing ? (
+                  <input
+                    type="tel"
+                    value={editData.phone}
+                    onChange={(e) => setEditData({...editData, phone: e.target.value})}
+                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                ) : (
+                  <p className="font-medium">{candidate.phone || 'Not found'}</p>
+                )}
+                {!isEditing && <ConfidenceBar score={candidate.confidence_scores.phone} label="" showLabel={false} />}
               </div>
             </div>
 
+            {/* Company Field */}
             <div className="flex items-start gap-3">
               <Building className="h-5 w-5 text-gray-400 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm text-gray-500">Company</p>
-                <p className="font-medium">{candidate.company || 'Not found'}</p>
-                <ConfidenceBar score={candidate.confidence_scores.company} label="" showLabel={false} />
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editData.company}
+                    onChange={(e) => setEditData({...editData, company: e.target.value})}
+                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                ) : (
+                  <p className="font-medium">{candidate.company || 'Not found'}</p>
+                )}
+                {!isEditing && <ConfidenceBar score={candidate.confidence_scores.company} label="" showLabel={false} />}
               </div>
             </div>
 
+            {/* Designation Field */}
             <div className="flex items-start gap-3">
               <Briefcase className="h-5 w-5 text-gray-400 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm text-gray-500">Designation</p>
-                <p className="font-medium">{candidate.designation || 'Not found'}</p>
-                <ConfidenceBar score={candidate.confidence_scores.designation} label="" showLabel={false} />
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editData.designation}
+                    onChange={(e) => setEditData({...editData, designation: e.target.value})}
+                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                ) : (
+                  <p className="font-medium">{candidate.designation || 'Not found'}</p>
+                )}
+                {!isEditing && <ConfidenceBar score={candidate.confidence_scores.designation} label="" showLabel={false} />}
               </div>
             </div>
 
+            {/* Skills Field */}
             <div>
               <p className="text-sm text-gray-500 mb-2">Skills</p>
-              <div className="flex flex-wrap gap-2">
-                {skills.length > 0 ? (
-                  skills.map((skill: string, i: number) => (
-                    <span
-                      key={i}
-                      className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm"
+              {isEditing ? (
+                <div>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {editData.skills.map((skill, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm"
+                      >
+                        {skill}
+                        <button
+                          onClick={() => handleRemoveSkill(skill)}
+                          className="hover:text-blue-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newSkill}
+                      onChange={(e) => setNewSkill(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddSkill()}
+                      placeholder="Add skill..."
+                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <button
+                      onClick={handleAddSkill}
+                      className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
                     >
-                      {skill}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-gray-400">No skills extracted</span>
-                )}
-              </div>
-              <div className="mt-2">
-                <ConfidenceBar score={candidate.confidence_scores.skills} label="" showLabel={false} />
-              </div>
+                      Add
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {displayedSkills.length > 0 ? (
+                      displayedSkills.map((skill: string, i: number) => (
+                        <span
+                          key={i}
+                          className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm"
+                        >
+                          {skill}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-400">No skills extracted</span>
+                    )}
+                  </div>
+                  {hasMoreSkills && (
+                    <button
+                      onClick={() => setShowAllSkills(!showAllSkills)}
+                      className="mt-2 flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      {showAllSkills ? (
+                        <>
+                          <ChevronUp className="h-4 w-4" />
+                          Show less
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-4 w-4" />
+                          Show {skills.length - SKILLS_PREVIEW_COUNT} more skills
+                        </>
+                      )}
+                    </button>
+                  )}
+                  <div className="mt-2">
+                    <ConfidenceBar score={candidate.confidence_scores.skills} label="" showLabel={false} />
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
           {/* Overall Confidence */}
-          <div className="mt-6 pt-4 border-t">
-            <div className="flex justify-between items-center">
-              <span className="font-medium">Overall Confidence</span>
-              <span className={`text-lg font-bold ${
-                (candidate.confidence_scores.overall || 0) >= 0.8
-                  ? 'text-green-600'
-                  : (candidate.confidence_scores.overall || 0) >= 0.6
-                  ? 'text-yellow-600'
-                  : 'text-red-600'
-              }`}>
-                {Math.round((candidate.confidence_scores.overall || 0) * 100)}%
-              </span>
+          {!isEditing && (
+            <div className="mt-6 pt-4 border-t">
+              <div className="flex justify-between items-center">
+                <span className="font-medium">Overall Confidence</span>
+                <span className={`text-lg font-bold ${
+                  (candidate.confidence_scores.overall || 0) >= 0.8
+                    ? 'text-green-600'
+                    : (candidate.confidence_scores.overall || 0) >= 0.6
+                    ? 'text-yellow-600'
+                    : 'text-red-600'
+                }`}>
+                  {Math.round((candidate.confidence_scores.overall || 0) * 100)}%
+                </span>
+              </div>
+              {(candidate.confidence_scores.overall || 0) < 0.7 && (
+                <p className="text-sm text-amber-600 mt-2">
+                  ⚠️ Low confidence - consider reviewing and editing the extracted data
+                </p>
+              )}
             </div>
-          </div>
+          )}
         </div>
 
         {/* Documents & Actions */}
@@ -323,7 +568,7 @@ export default function CandidateDetail() {
                     <p className="font-medium">PAN Card</p>
                     <p className="text-sm text-gray-500">
                       {candidate.has_pan
-                        ? `${candidate.pan_validated ? 'Validated' : 'Uploaded'}`
+                        ? 'Submitted'
                         : 'Not submitted'}
                     </p>
                   </div>
@@ -350,7 +595,7 @@ export default function CandidateDetail() {
                     <p className="font-medium">Aadhaar Card</p>
                     <p className="text-sm text-gray-500">
                       {candidate.has_aadhaar
-                        ? `${candidate.aadhaar_validated ? 'Validated' : 'Uploaded'}`
+                        ? 'Submitted'
                         : 'Not submitted'}
                     </p>
                   </div>
@@ -416,9 +661,59 @@ export default function CandidateDetail() {
         </div>
       </div>
 
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-amber-100 rounded-full">
+                  <AlertTriangle className="h-6 w-6 text-amber-600" />
+                </div>
+                <h3 className="text-lg font-semibold">Documents Already Submitted</h3>
+              </div>
+
+              <p className="text-gray-600 mb-4">
+                This candidate has already submitted their documents. Sending a new request will:
+              </p>
+
+              <ul className="text-sm text-gray-600 mb-6 space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-500 mt-0.5">•</span>
+                  Generate a new submission link
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-500 mt-0.5">•</span>
+                  Invalidate the previous link
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-500 mt-0.5">•</span>
+                  Allow them to replace existing documents
+                </li>
+              </ul>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={sendDocumentRequest}
+                  className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Send Request
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Email Preview Modal */}
       {showEmailPreview && emailContent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-auto">
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">Email Sent</h3>

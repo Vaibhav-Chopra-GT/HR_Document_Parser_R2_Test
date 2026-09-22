@@ -35,13 +35,18 @@ def validate_token(token):
         'candidate'
     )
 
+    # Check if already submitted (link already used)
+    already_submitted = candidate.documents_submitted_at is not None
+
     return jsonify({
         "valid": True,
+        "already_submitted": already_submitted,
         "name": candidate.name,  # Only return name for personalization
         "documents_submitted": {
             "pan": bool(candidate.pan_filename),
             "aadhaar": bool(candidate.aadhaar_filename)
-        }
+        },
+        "submitted_at": candidate.documents_submitted_at.isoformat() if candidate.documents_submitted_at else None
     })
 
 
@@ -64,6 +69,13 @@ def submit_documents(token):
 
     if not candidate.is_token_valid():
         return jsonify({"error": "This link has expired"}), 410
+
+    # Check if documents have already been submitted with this token
+    if candidate.documents_submitted_at:
+        return jsonify({
+            "error": "Documents have already been submitted",
+            "message": "This link has already been used. Please contact HR if you need to update your documents."
+        }), 409
 
     # Check if at least one file is provided
     has_pan = 'pan' in request.files and request.files['pan'].filename

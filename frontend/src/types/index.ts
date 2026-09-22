@@ -95,11 +95,13 @@ export interface AuditLogEntry {
 // Portal types
 export interface PortalValidation {
   valid: boolean;
+  already_submitted: boolean;
   name: string;
   documents_submitted: {
     pan: boolean;
     aadhaar: boolean;
   };
+  submitted_at: string | null;
 }
 
 export interface SubmitResult {

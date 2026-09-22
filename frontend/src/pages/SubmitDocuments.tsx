@@ -18,6 +18,8 @@ export default function SubmitDocuments() {
 
   const [validating, setValidating] = useState(true);
   const [valid, setValid] = useState(false);
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [candidateName, setCandidateName] = useState('');
   const [existingDocs, setExistingDocs] = useState({ pan: false, aadhaar: false });
 
@@ -43,6 +45,8 @@ export default function SubmitDocuments() {
         setValid(result.valid);
         setCandidateName(result.name);
         setExistingDocs(result.documents_submitted);
+        setAlreadySubmitted(result.already_submitted || false);
+        setSubmittedAt(result.submitted_at || null);
       } catch (error: any) {
         setValid(false);
         if (error.response?.status === 410) {
@@ -136,6 +140,28 @@ export default function SubmitDocuments() {
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Link</h1>
           <p className="text-gray-600">
             This link is invalid or has expired. Please contact the HR team for a new link.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (alreadySubmitted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+          <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Already Submitted</h1>
+          <p className="text-gray-600 mb-4">
+            You have already submitted your documents using this link.
+          </p>
+          {submittedAt && (
+            <p className="text-sm text-gray-500 mb-4">
+              Submitted on: {new Date(submittedAt).toLocaleString()}
+            </p>
+          )}
+          <p className="text-sm text-gray-500">
+            If you need to update your documents, please contact the HR team for a new submission link.
           </p>
         </div>
       </div>

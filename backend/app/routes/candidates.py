@@ -264,9 +264,6 @@ def get_candidate(candidate_id):
         except:
             candidate_dict['skills'] = []
 
-    # Log view
-    AuditLogger.log(candidate.id, AuditActions.CANDIDATE_VIEWED, 'hr')
-
     return jsonify({"candidate": candidate_dict})
 
 
@@ -482,6 +479,65 @@ def reprocess_resume(candidate_id):
             "status": "failed",
             "error": str(e)
         }), 500
+
+
+@candidates_bp.route('/<candidate_id>', methods=['PUT', 'PATCH'])
+def update_candidate(candidate_id):
+    """
+    Update candidate information (manual edit by HR)
+    PUT/PATCH /api/candidates/<id>
+
+    JSON body: { name, email, phone, company, designation, skills }
+    """
+    candidate = Candidate.query.get_or_404(candidate_id)
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    # Track what was changed
+    changes = {}
+
+    # Update allowed fields
+    editable_fields = ['name', 'email', 'phone', 'company', 'designation', 'skills']
+
+    for field in editable_fields:
+        if field in data:
+            old_value = getattr(candidate, field)
+            new_value = data[field]
+
+            # Handle skills (convert list to JSON string)
+            if field == 'skills':
+                if isinstance(new_value, list):
+                    new_value = json.dumps(new_value)
+                elif isinstance(new_value, str):
+                    # Validate it's valid JSON if string
+                    try:
+                        json.loads(new_value)
+                    except:
+                        new_value = json.dumps([new_value])
+
+            if old_value != new_value:
+                setattr(candidate, field, new_value)
+                changes[field] = {"old": old_value, "new": new_value}
+
+    if changes:
+        db.session.commit()
+
+        # Log the edit
+        AuditLogger.log(
+            candidate.id,
+            'candidate_edited',
+            'hr',
+            {"changes": {k: v['new'] for k, v in changes.items()}}
+        )
+
+    return jsonify({
+        "success": True,
+        "message": "Candidate updated" if changes else "No changes made",
+        "changes": list(changes.keys()),
+        "candidate": candidate.to_dict()
+    })
 
 
 @candidates_bp.route('/<candidate_id>', methods=['DELETE'])

@@ -88,6 +88,19 @@ export const candidatesApi = {
     return response.data;
   },
 
+  // Update candidate (manual edit)
+  update: async (id: string, data: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    company?: string;
+    designation?: string;
+    skills?: string[];
+  }): Promise<{ success: boolean; message: string; candidate: any }> => {
+    const response = await api.put(`/candidates/${id}`, data);
+    return response.data;
+  },
+
   // Delete candidate
   delete: async (id: string): Promise<{ success: boolean; message: string }> => {
     const response = await api.delete(`/candidates/${id}`);

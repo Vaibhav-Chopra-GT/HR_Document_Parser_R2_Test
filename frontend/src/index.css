@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* Custom styles */
+body {
+  background-color: #f9fafb;
+  color: #111827;
+}
+
+/* Confidence bar colors */
+.confidence-high {
+  background-color: #22c55e;
+}
+.confidence-medium {
+  background-color: #eab308;
+}
+.confidence-low {
+  background-color: #ef4444;
+}

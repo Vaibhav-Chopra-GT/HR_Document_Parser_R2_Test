@@ -189,7 +189,7 @@ class OutputValidator:
             return False, "Body too long"
 
         # Check for suspicious URLs (not our domain)
-        url_pattern = r'https?://(?!localhost|traqcheck)[^\s<>\"\']+'
+        url_pattern = r'https?://(?!localhost|talently)[^\s<>\"\']+'
         suspicious_urls = re.findall(url_pattern, body, re.IGNORECASE)
         # Allow the submission link but flag others
 

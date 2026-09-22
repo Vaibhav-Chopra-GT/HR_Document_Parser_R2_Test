@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,8 +12,13 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
     # Database
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///traqcheck.db')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///talently.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # JWT
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', SECRET_KEY)
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
 
     # AI Provider
     AI_PROVIDER = os.environ.get('AI_PROVIDER', 'openai').lower()
@@ -21,7 +27,7 @@ class Config:
 
     # Email
     RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
-    EMAIL_FROM = os.environ.get('EMAIL_FROM', 'TraqCheck <noreply@traqcheck.app>')
+    EMAIL_FROM = os.environ.get('EMAIL_FROM', 'Talently <noreply@talently.app>')
 
     # Security
     ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY')

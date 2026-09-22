@@ -1,9 +1,50 @@
 from datetime import datetime, timedelta
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
 import secrets
+import base64
+import os
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 db = SQLAlchemy()
+
+# Encryption key derivation from SECRET_KEY
+_fernet = None
+
+def get_fernet():
+    """Get or create Fernet instance for encryption"""
+    global _fernet
+    if _fernet is None:
+        from flask import current_app
+        secret = current_app.config.get('SECRET_KEY', 'default-secret-key')
+        # Derive a proper Fernet key from SECRET_KEY
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=b'talently_salt_v1',  # Fixed salt for consistent key derivation
+            iterations=100000,
+        )
+        key = base64.urlsafe_b64encode(kdf.derive(secret.encode()))
+        _fernet = Fernet(key)
+    return _fernet
+
+def encrypt_data(data: str) -> str:
+    """Encrypt sensitive data"""
+    if not data:
+        return data
+    return get_fernet().encrypt(data.encode()).decode()
+
+def decrypt_data(encrypted: str) -> str:
+    """Decrypt sensitive data"""
+    if not encrypted:
+        return encrypted
+    try:
+        return get_fernet().decrypt(encrypted.encode()).decode()
+    except:
+        return encrypted  # Return as-is if decryption fails (legacy data)
 
 
 def generate_uuid():
@@ -14,11 +55,53 @@ def generate_token():
     return secrets.token_urlsafe(32)
 
 
+class User(db.Model):
+    """HR User model"""
+    __tablename__ = 'users'
+
+    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+    email = db.Column(db.String(255), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    company = db.Column(db.String(255))  # Organization/Company name
+
+    # Status
+    is_active = db.Column(db.Boolean, default=True)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login_at = db.Column(db.DateTime)
+
+    # Relationships
+    candidates = db.relationship('Candidate', backref='owner', lazy='dynamic')
+
+    def set_password(self, password):
+        """Hash and set password"""
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        """Verify password"""
+        return check_password_hash(self.password_hash, password)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'email': self.email,
+            'name': self.name,
+            'company': self.company,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_login_at': self.last_login_at.isoformat() if self.last_login_at else None
+        }
+
+
 class Candidate(db.Model):
     """Candidate model with extracted resume data"""
     __tablename__ = 'candidates'
 
     id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+
+    # Owner (HR User)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True)  # nullable for migration
 
     # Extracted Information
     name = db.Column(db.String(255))
@@ -69,16 +152,22 @@ class Candidate(db.Model):
     audit_logs = db.relationship('AuditLog', backref='candidate', lazy='dynamic')
     email_logs = db.relationship('EmailLog', backref='candidate', lazy='dynamic')
 
-    def generate_submission_token(self, expiry_days=7):
-        """Generate a new submission token"""
+    def generate_submission_token(self, expiry_days=None):
+        """Generate a new submission token. If expiry_days is None, link never expires."""
         self.submission_token = generate_token()
-        self.token_expires_at = datetime.utcnow() + timedelta(days=expiry_days)
+        if expiry_days:
+            self.token_expires_at = datetime.utcnow() + timedelta(days=expiry_days)
+        else:
+            self.token_expires_at = None  # Never expires
         return self.submission_token
 
     def is_token_valid(self):
         """Check if submission token is still valid"""
-        if not self.submission_token or not self.token_expires_at:
+        if not self.submission_token:
             return False
+        # If no expiry set, token is always valid
+        if not self.token_expires_at:
+            return True
         return datetime.utcnow() < self.token_expires_at
 
     def to_dict(self, include_sensitive=False):

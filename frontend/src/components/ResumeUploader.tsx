@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, X, AlertTriangle } from 'lucide-react';
+import { Upload, FileText, X, AlertTriangle, Loader2 } from 'lucide-react';
 import { candidatesApi } from '../api/client';
 import type { CandidateListItem } from '../types';
 import toast from 'react-hot-toast';
@@ -18,6 +18,7 @@ interface DuplicateInfo {
 
 export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps) {
   const [uploading, setUploading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo | null>(null);
@@ -43,10 +44,21 @@ export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps)
     if (!selectedFile) return;
 
     setUploading(true);
+    setExtracting(false);
     setProgress(0);
 
     try {
-      const result = await candidatesApi.upload(selectedFile, (p) => setProgress(p), force);
+      const result = await candidatesApi.upload(
+        selectedFile,
+        (p) => {
+          setProgress(p);
+          // When upload completes, switch to extracting state
+          if (p === 100) {
+            setExtracting(true);
+          }
+        },
+        force
+      );
 
       // Check for duplicate
       if (result.duplicate && result.existing_candidate) {
@@ -57,6 +69,7 @@ export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps)
           file: selectedFile,
         });
         setUploading(false);
+        setExtracting(false);
         return;
       }
 
@@ -73,6 +86,7 @@ export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps)
       toast.error(error.response?.data?.error || 'Upload failed');
     } finally {
       setUploading(false);
+      setExtracting(false);
       setProgress(0);
     }
   };
@@ -141,16 +155,25 @@ export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps)
 
           {uploading && (
             <div className="mb-4">
-              <div className="flex justify-between text-sm text-gray-600 mb-1">
-                <span>Uploading & Processing...</span>
-                <span>{progress}%</span>
-              </div>
-              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-500 transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
+              {!extracting ? (
+                <>
+                  <div className="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>Uploading...</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-3 text-blue-600">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-sm font-medium">Extracting data with AI...</span>
+                </div>
+              )}
             </div>
           )}
 

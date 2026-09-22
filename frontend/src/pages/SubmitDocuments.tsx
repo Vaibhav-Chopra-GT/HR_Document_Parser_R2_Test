@@ -22,11 +22,10 @@ export default function SubmitDocuments() {
   const [submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [candidateName, setCandidateName] = useState('');
   const [existingDocs, setExistingDocs] = useState({ pan: false, aadhaar: false });
+  const [hrEmail, setHrEmail] = useState<string | null>(null);
 
   const [panFile, setPanFile] = useState<File | null>(null);
   const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
-  const [panNumber, setPanNumber] = useState('');
-  const [aadhaarNumber, setAadhaarNumber] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -47,6 +46,7 @@ export default function SubmitDocuments() {
         setExistingDocs(result.documents_submitted);
         setAlreadySubmitted(result.already_submitted || false);
         setSubmittedAt(result.submitted_at || null);
+        setHrEmail(result.hr_email || null);
       } catch (error: any) {
         setValid(false);
         if (error.response?.status === 410) {
@@ -101,11 +101,7 @@ export default function SubmitDocuments() {
     try {
       const result = await portalApi.submit(
         token,
-        { pan: panFile || undefined, aadhaar: aadhaarFile || undefined },
-        {
-          pan_number: panNumber || undefined,
-          aadhaar_number: aadhaarNumber || undefined
-        }
+        { pan: panFile || undefined, aadhaar: aadhaarFile || undefined }
       );
 
       if (result.success) {
@@ -139,7 +135,13 @@ export default function SubmitDocuments() {
           <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Link</h1>
           <p className="text-gray-600">
-            This link is invalid or has expired. Please contact the HR team for a new link.
+            This link is invalid or has expired. Please contact{' '}
+            {hrEmail ? (
+              <a href={`mailto:${hrEmail}`} className="text-blue-600 hover:underline">{hrEmail}</a>
+            ) : (
+              'the HR team'
+            )}{' '}
+            for a new link.
           </p>
         </div>
       </div>
@@ -161,7 +163,13 @@ export default function SubmitDocuments() {
             </p>
           )}
           <p className="text-sm text-gray-500">
-            If you need to update your documents, please contact the HR team for a new submission link.
+            If you need to update your documents, please contact{' '}
+            {hrEmail ? (
+              <a href={`mailto:${hrEmail}`} className="text-blue-600 hover:underline">{hrEmail}</a>
+            ) : (
+              'the HR team'
+            )}{' '}
+            for a new submission link.
           </p>
         </div>
       </div>
@@ -272,20 +280,6 @@ export default function SubmitDocuments() {
               </button>
             </div>
           )}
-
-          <div className="mt-4">
-            <label className="block text-sm text-gray-600 mb-1">
-              PAN Number (optional, for validation)
-            </label>
-            <input
-              type="text"
-              value={panNumber}
-              onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
-              placeholder="ABCDE1234F"
-              maxLength={10}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent uppercase"
-            />
-          </div>
         </div>
 
         {/* Aadhaar Card Upload */}
@@ -334,20 +328,6 @@ export default function SubmitDocuments() {
               </button>
             </div>
           )}
-
-          <div className="mt-4">
-            <label className="block text-sm text-gray-600 mb-1">
-              Aadhaar Number (optional, for validation)
-            </label>
-            <input
-              type="text"
-              value={aadhaarNumber}
-              onChange={(e) => setAadhaarNumber(e.target.value.replace(/[^0-9]/g, ''))}
-              placeholder="1234 5678 9012"
-              maxLength={14}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
         </div>
 
         {/* Submit Button */}
@@ -364,7 +344,13 @@ export default function SubmitDocuments() {
         </button>
 
         <p className="text-center text-sm text-gray-500 mt-4">
-          Having trouble? Contact the HR team for assistance.
+          Having trouble? Contact{' '}
+          {hrEmail ? (
+            <a href={`mailto:${hrEmail}`} className="text-blue-600 hover:underline">{hrEmail}</a>
+          ) : (
+            'the HR team'
+          )}{' '}
+          for assistance.
         </p>
       </div>
     </div>

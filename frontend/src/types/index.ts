@@ -102,6 +102,8 @@ export interface PortalValidation {
     aadhaar: boolean;
   };
   submitted_at: string | null;
+  hr_email: string | null;
+  hr_company: string | null;
 }
 
 export interface SubmitResult {
@@ -121,4 +123,22 @@ export interface SubmitResponse {
   };
   document_status: string;
   message: string;
+}
+
+// Auth types
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  company: string | null;
+  created_at: string | null;
+  last_login_at: string | null;
+}
+
+export interface AuthResponse {
+  success: boolean;
+  message: string;
+  user: User;
+  access_token: string;
+  refresh_token: string;
 }

@@ -123,7 +123,7 @@ class EmailService:
         """Send document submission confirmation to candidate"""
         from app.models import EmailLog, db
 
-        subject = "Documents Received - TraqCheck Verification"
+        subject = "Documents Received - Talently Verification"
         body = f"""Dear {candidate.name or 'Candidate'},
 
 Thank you for submitting your documents for verification.
@@ -135,7 +135,7 @@ We have successfully received:
 Our team will review your documents and get back to you if needed.
 
 Best regards,
-TraqCheck Verification Team"""
+Talently Verification Team"""
 
         if not self.is_configured():
             log = EmailLog(

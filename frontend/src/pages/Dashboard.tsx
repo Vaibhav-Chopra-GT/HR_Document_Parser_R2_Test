@@ -4,12 +4,14 @@ import { Search, RefreshCw } from 'lucide-react';
 import ResumeUploader from '../components/ResumeUploader';
 import CandidateTable from '../components/CandidateTable';
 import { candidatesApi } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 import type { CandidateListItem, PaginationInfo } from '../types';
 import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { user } = useAuth();
 
   const [candidates, setCandidates] = useState<CandidateListItem[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
@@ -82,7 +84,9 @@ export default function Dashboard() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Candidates</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Welcome back, {user?.name?.split(' ')[0] || 'HR'}
+          </h1>
           <p className="text-gray-500">
             Manage candidate resumes and document collection
           </p>

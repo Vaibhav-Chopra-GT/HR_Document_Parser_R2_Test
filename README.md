@@ -1,4 +1,4 @@
-# TraqCheck - Resume Parser & Document Collection System
+# Talently - Resume Parser & Document Collection System
 
 A full-stack AI-powered system for HR teams to:
 1. Upload and parse resumes automatically

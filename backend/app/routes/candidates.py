@@ -4,7 +4,8 @@ Candidates API Routes - HR Dashboard endpoints
 import json
 from datetime import datetime
 from flask import Blueprint, request, jsonify, send_file
-from app.models import db, Candidate, AuditLog
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from app.models import db, Candidate, AuditLog, User
 from app.utils.file_handler import save_file, get_file_path, allowed_file
 from app.utils.audit_logger import AuditLogger, AuditActions
 from app.services.resume_parser import ResumeParser
@@ -15,26 +16,42 @@ from app.config import Config
 candidates_bp = Blueprint('candidates', __name__)
 
 
-def find_duplicate_candidate(email=None, phone=None):
+def get_current_user():
+    """Get the current authenticated user"""
+    user_id = get_jwt_identity()
+    return User.query.get(user_id)
+
+
+def get_candidate_or_403(candidate_id, user_id):
+    """Get candidate and verify ownership"""
+    candidate = Candidate.query.get_or_404(candidate_id)
+    if candidate.user_id != user_id:
+        return None
+    return candidate
+
+
+def find_duplicate_candidate(user_id, email=None, phone=None):
     """
-    Check if a candidate with same email or phone already exists.
+    Check if a candidate with same email or phone already exists FOR THIS USER.
     Returns (existing_candidate, match_field) or (None, None)
     """
-    # Check by email (case-insensitive)
+    # Check by email (case-insensitive) - within user's candidates only
     if email:
         existing = Candidate.query.filter(
+            Candidate.user_id == user_id,
             db.func.lower(Candidate.email) == email.lower()
         ).first()
         if existing:
             return existing, 'email'
 
-    # Check by phone (normalize to last 10 digits)
+    # Check by phone (normalize to last 10 digits) - within user's candidates only
     if phone:
         normalized_phone = ''.join(filter(str.isdigit, str(phone)))
         if len(normalized_phone) >= 10:
             last_10 = normalized_phone[-10:]
-            # Check against existing candidates
+            # Check against user's candidates
             candidates_with_phone = Candidate.query.filter(
+                Candidate.user_id == user_id,
                 Candidate.phone.isnot(None)
             ).all()
             for candidate in candidates_with_phone:
@@ -46,6 +63,7 @@ def find_duplicate_candidate(email=None, phone=None):
 
 
 @candidates_bp.route('/upload', methods=['POST'])
+@jwt_required()
 def upload_resume():
     """
     Upload and parse a resume
@@ -59,6 +77,10 @@ def upload_resume():
         - If duplicate found (and force!=true): 409 with existing candidate info
         - If success: 201 with new candidate
     """
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+
     if 'file' not in request.files:
         return jsonify({"error": "No file provided"}), 400
 
@@ -72,8 +94,8 @@ def upload_resume():
 
     force_create = request.form.get('force', '').lower() == 'true'
 
-    # Create candidate record
-    candidate = Candidate(extraction_status='processing')
+    # Create candidate record linked to current user
+    candidate = Candidate(extraction_status='processing', user_id=current_user.id)
     db.session.add(candidate)
     db.session.commit()
 
@@ -123,6 +145,7 @@ def upload_resume():
         # Check for duplicate BEFORE finalizing (unless force=true)
         if not force_create:
             existing, match_field = find_duplicate_candidate(
+                current_user.id,
                 email=extracted.get('email'),
                 phone=extracted.get('phone')
             )
@@ -193,6 +216,7 @@ def upload_resume():
 
 
 @candidates_bp.route('', methods=['GET'])
+@jwt_required()
 def list_candidates():
     """
     List all candidates with optional filters
@@ -205,13 +229,18 @@ def list_candidates():
         - doc_status: Filter by document_status
         - search: Search by name or email
     """
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 20, type=int), 100)
     status = request.args.get('status')
     doc_status = request.args.get('doc_status')
     search = request.args.get('search')
 
-    query = Candidate.query
+    # Filter by current user's candidates only
+    query = Candidate.query.filter_by(user_id=current_user.id)
 
     if status:
         query = query.filter(Candidate.extraction_status == status)
@@ -249,12 +278,16 @@ def list_candidates():
 
 
 @candidates_bp.route('/<candidate_id>', methods=['GET'])
+@jwt_required()
 def get_candidate(candidate_id):
     """
     Get candidate details
     GET /api/candidates/<id>
     """
-    candidate = Candidate.query.get_or_404(candidate_id)
+    current_user = get_current_user()
+    candidate = get_candidate_or_403(candidate_id, current_user.id)
+    if not candidate:
+        return jsonify({"error": "Candidate not found or access denied"}), 403
 
     # Parse skills JSON
     candidate_dict = candidate.to_dict()
@@ -268,12 +301,19 @@ def get_candidate(candidate_id):
 
 
 @candidates_bp.route('/<candidate_id>/request-documents', methods=['POST'])
+@jwt_required()
 def request_documents(candidate_id):
     """
     Generate and send document request email
     POST /api/candidates/<id>/request-documents
     """
-    candidate = Candidate.query.get_or_404(candidate_id)
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+
+    candidate = get_candidate_or_403(candidate_id, current_user.id)
+    if not candidate:
+        return jsonify({"error": "Candidate not found or access denied"}), 403
 
     if not candidate.email:
         return jsonify({"error": "Candidate has no email address"}), 400
@@ -288,7 +328,10 @@ def request_documents(candidate_id):
         "name": candidate.name,
         "company": candidate.company,
         "designation": candidate.designation,
-        "submission_link": submission_link
+        "submission_link": submission_link,
+        "hr_name": current_user.name,
+        "hr_email": current_user.email,
+        "hr_company": current_user.company
     })
 
     if not email_result.get('success'):
@@ -305,22 +348,28 @@ def request_documents(candidate_id):
         email_result['body']
     )
 
-    if not send_result.get('success') and not send_result.get('skipped'):
+    # Update candidate status regardless of email success
+    candidate.document_status = 'requested'
+    candidate.documents_requested_at = datetime.utcnow()
+    db.session.commit()
+
+    # Determine email status
+    email_sent = send_result.get('success', False) and not send_result.get('skipped', False)
+    email_skipped = send_result.get('skipped', False)
+    email_failed = not send_result.get('success', False) and not email_skipped
+
+    if email_failed:
         AuditLogger.log(
             candidate.id,
             AuditActions.DOCUMENT_REQUEST_FAILED,
             'hr',
             {"error": send_result.get('error')}
         )
-        return jsonify({
-            "error": "Failed to send email",
-            "details": send_result.get('error')
-        }), 500
-
-    # Update candidate status
-    candidate.document_status = 'requested'
-    candidate.documents_requested_at = datetime.utcnow()
-    db.session.commit()
+        message = f"Email failed to send: {send_result.get('error', 'Unknown error')}. Portal link still generated."
+    elif email_skipped:
+        message = "Document request logged (email not configured)"
+    else:
+        message = "Document request sent successfully"
 
     AuditLogger.log(
         candidate.id,
@@ -328,14 +377,16 @@ def request_documents(candidate_id):
         'hr',
         {
             "email": candidate.email,
-            "skipped": send_result.get('skipped', False)
+            "skipped": email_skipped,
+            "failed": email_failed
         }
     )
 
     return jsonify({
         "success": True,
-        "message": "Document request sent" if not send_result.get('skipped') else "Document request logged (email not configured)",
-        "email_sent": not send_result.get('skipped', False),
+        "message": message,
+        "email_sent": email_sent,
+        "email_failed": email_failed,
         "submission_link": submission_link,
         "subject": email_result['subject'],
         "body": email_result['body']
@@ -343,12 +394,16 @@ def request_documents(candidate_id):
 
 
 @candidates_bp.route('/<candidate_id>/audit-log', methods=['GET'])
+@jwt_required()
 def get_audit_log(candidate_id):
     """
     Get audit log for a candidate
     GET /api/candidates/<id>/audit-log
     """
-    candidate = Candidate.query.get_or_404(candidate_id)
+    current_user = get_current_user()
+    candidate = get_candidate_or_403(candidate_id, current_user.id)
+    if not candidate:
+        return jsonify({"error": "Candidate not found or access denied"}), 403
 
     limit = request.args.get('limit', 50, type=int)
     logs = AuditLogger.get_logs(candidate.id, limit)
@@ -357,12 +412,16 @@ def get_audit_log(candidate_id):
 
 
 @candidates_bp.route('/<candidate_id>/resume', methods=['GET'])
+@jwt_required()
 def download_resume(candidate_id):
     """
     Download candidate's resume
     GET /api/candidates/<id>/resume
     """
-    candidate = Candidate.query.get_or_404(candidate_id)
+    current_user = get_current_user()
+    candidate = get_candidate_or_403(candidate_id, current_user.id)
+    if not candidate:
+        return jsonify({"error": "Candidate not found or access denied"}), 403
 
     if not candidate.resume_filename:
         return jsonify({"error": "No resume found"}), 404
@@ -377,13 +436,17 @@ def download_resume(candidate_id):
 
 
 @candidates_bp.route('/<candidate_id>/documents/<doc_type>', methods=['GET'])
+@jwt_required()
 def download_document(candidate_id, doc_type):
     """
     Download candidate's submitted document
     GET /api/candidates/<id>/documents/pan
     GET /api/candidates/<id>/documents/aadhaar
     """
-    candidate = Candidate.query.get_or_404(candidate_id)
+    current_user = get_current_user()
+    candidate = get_candidate_or_403(candidate_id, current_user.id)
+    if not candidate:
+        return jsonify({"error": "Candidate not found or access denied"}), 403
 
     if doc_type == 'pan':
         filename = candidate.pan_filename
@@ -407,12 +470,16 @@ def download_document(candidate_id, doc_type):
 
 
 @candidates_bp.route('/<candidate_id>/reprocess', methods=['POST'])
+@jwt_required()
 def reprocess_resume(candidate_id):
     """
     Re-run extraction on existing resume
     POST /api/candidates/<id>/reprocess
     """
-    candidate = Candidate.query.get_or_404(candidate_id)
+    current_user = get_current_user()
+    candidate = get_candidate_or_403(candidate_id, current_user.id)
+    if not candidate:
+        return jsonify({"error": "Candidate not found or access denied"}), 403
 
     if not candidate.resume_filename:
         return jsonify({"error": "No resume to process"}), 400
@@ -482,6 +549,7 @@ def reprocess_resume(candidate_id):
 
 
 @candidates_bp.route('/<candidate_id>', methods=['PUT', 'PATCH'])
+@jwt_required()
 def update_candidate(candidate_id):
     """
     Update candidate information (manual edit by HR)
@@ -489,7 +557,11 @@ def update_candidate(candidate_id):
 
     JSON body: { name, email, phone, company, designation, skills }
     """
-    candidate = Candidate.query.get_or_404(candidate_id)
+    current_user = get_current_user()
+    candidate = get_candidate_or_403(candidate_id, current_user.id)
+    if not candidate:
+        return jsonify({"error": "Candidate not found or access denied"}), 403
+
     data = request.get_json()
 
     if not data:
@@ -541,12 +613,16 @@ def update_candidate(candidate_id):
 
 
 @candidates_bp.route('/<candidate_id>', methods=['DELETE'])
+@jwt_required()
 def delete_candidate(candidate_id):
     """
     Soft delete a candidate (for GDPR compliance, we might want to keep audit logs)
     DELETE /api/candidates/<id>
     """
-    candidate = Candidate.query.get_or_404(candidate_id)
+    current_user = get_current_user()
+    candidate = get_candidate_or_403(candidate_id, current_user.id)
+    if not candidate:
+        return jsonify({"error": "Candidate not found or access denied"}), 403
 
     # Log deletion before removing
     AuditLogger.log(

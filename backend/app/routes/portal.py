@@ -3,7 +3,7 @@ Portal API Routes - Candidate document submission endpoints
 """
 from datetime import datetime
 from flask import Blueprint, request, jsonify
-from app.models import db, Candidate
+from app.models import db, Candidate, User
 from app.utils.file_handler import save_file, allowed_file
 from app.utils.audit_logger import AuditLogger, AuditActions
 from app.services.document_validator import PANValidator, AadhaarValidator, validate_document_image
@@ -38,6 +38,15 @@ def validate_token(token):
     # Check if already submitted (link already used)
     already_submitted = candidate.documents_submitted_at is not None
 
+    # Get HR contact info
+    hr_email = None
+    hr_company = None
+    if candidate.user_id:
+        hr_user = User.query.get(candidate.user_id)
+        if hr_user:
+            hr_email = hr_user.email
+            hr_company = hr_user.company
+
     return jsonify({
         "valid": True,
         "already_submitted": already_submitted,
@@ -46,7 +55,9 @@ def validate_token(token):
             "pan": bool(candidate.pan_filename),
             "aadhaar": bool(candidate.aadhaar_filename)
         },
-        "submitted_at": candidate.documents_submitted_at.isoformat() if candidate.documents_submitted_at else None
+        "submitted_at": candidate.documents_submitted_at.isoformat() if candidate.documents_submitted_at else None,
+        "hr_email": hr_email,
+        "hr_company": hr_company
     })
 
 

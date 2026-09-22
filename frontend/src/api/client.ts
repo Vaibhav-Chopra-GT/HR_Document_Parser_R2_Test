@@ -7,6 +7,8 @@ import type {
   AuditLogEntry,
   PortalValidation,
   SubmitResponse,
+  AuthResponse,
+  User,
 } from '../types';
 
 // Use proxy in development (vite.config.ts), direct URL in production
@@ -18,6 +20,69 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Handle 401 errors (token expired)
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401 && error.response?.data?.code === 'token_expired') {
+      // Try to refresh token
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (refreshToken) {
+        try {
+          const response = await axios.post(`${API_BASE}/auth/refresh`, {}, {
+            headers: { Authorization: `Bearer ${refreshToken}` }
+          });
+          localStorage.setItem('access_token', response.data.access_token);
+          // Retry original request
+          error.config.headers.Authorization = `Bearer ${response.data.access_token}`;
+          return api.request(error.config);
+        } catch {
+          // Refresh failed, clear tokens
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          window.location.href = '/login';
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Auth API
+export const authApi = {
+  signup: async (name: string, email: string, password: string, company?: string): Promise<AuthResponse> => {
+    const response = await api.post('/auth/signup', { name, email, password, company });
+    return response.data;
+  },
+
+  login: async (email: string, password: string): Promise<AuthResponse> => {
+    const response = await api.post('/auth/login', { email, password });
+    return response.data;
+  },
+
+  me: async (): Promise<{ user: User }> => {
+    const response = await api.get('/auth/me');
+    return response.data;
+  },
+
+  refresh: async (): Promise<{ access_token: string }> => {
+    const refreshToken = localStorage.getItem('refresh_token');
+    const response = await axios.post(`${API_BASE}/auth/refresh`, {}, {
+      headers: { Authorization: `Bearer ${refreshToken}` }
+    });
+    return response.data;
+  },
+};
 
 // Candidates API
 export const candidatesApi = {
@@ -107,12 +172,61 @@ export const candidatesApi = {
     return response.data;
   },
 
-  // Get resume download URL
-  getResumeUrl: (id: string): string => `${API_BASE}/candidates/${id}/resume`,
+  // Download resume (authenticated)
+  downloadResume: async (id: string, filename?: string): Promise<void> => {
+    const response = await api.get(`/candidates/${id}/resume`, {
+      responseType: 'blob',
+    });
 
-  // Get document download URL
-  getDocumentUrl: (id: string, docType: 'pan' | 'aadhaar'): string =>
-    `${API_BASE}/candidates/${id}/documents/${docType}`,
+    // Get filename from Content-Disposition header or use provided filename
+    const contentDisposition = response.headers['content-disposition'];
+    let downloadFilename = filename || 'resume';
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      if (match && match[1]) {
+        downloadFilename = match[1].replace(/['"]/g, '');
+      }
+    }
+
+    // Create blob URL and trigger download
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = downloadFilename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
+
+  // Download document (authenticated)
+  downloadDocument: async (id: string, docType: 'pan' | 'aadhaar', filename?: string): Promise<void> => {
+    const response = await api.get(`/candidates/${id}/documents/${docType}`, {
+      responseType: 'blob',
+    });
+
+    // Get filename from Content-Disposition header or use provided filename
+    const contentDisposition = response.headers['content-disposition'];
+    let downloadFilename = filename || `${docType}_document`;
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      if (match && match[1]) {
+        downloadFilename = match[1].replace(/['"]/g, '');
+      }
+    }
+
+    // Create blob URL and trigger download
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = downloadFilename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
 };
 
 // Portal API (for candidates)

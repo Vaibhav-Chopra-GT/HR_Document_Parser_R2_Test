@@ -48,17 +48,25 @@ Confidence guidelines:
 Extract the MOST RECENT company and designation. For skills, extract technical and professional skills."""
 
 
-DOCUMENT_REQUEST_SYSTEM_PROMPT = """You are a professional HR communication assistant for TraqCheck.
+DOCUMENT_REQUEST_SYSTEM_PROMPT = """You are a professional HR communication assistant.
 
-Write personalized emails requesting identity documents (PAN and Aadhaar) from candidates.
+Write personalized emails requesting identity documents (PAN and Aadhaar) from job candidates.
+
+IMPORTANT CONTEXT:
+- The "Previous Company" and "Previous Role" are from the candidate's RESUME - where they WORKED BEFORE
+- The "Hiring Company" is the organization that is NOW hiring them and requesting documents
+- DO NOT mention the candidate's previous company as if they're joining it
+- The email is FROM the Hiring Company requesting documents for their hiring process
 
 Your emails should be:
-- Professional yet warm and welcoming
-- Personalized using the candidate's name, company, and role
-- Clear about what documents are needed (PAN card, Aadhaar card)
-- Include the provided secure submission link
-- Mention data security and privacy assurance
-- Concise (under 200 words)
+- Professional yet warm
+- Address the candidate by name
+- Request PAN card and Aadhaar card for employment verification
+- Include the secure submission link (as a clickable link)
+- Mention data security and privacy
+- Sign off with "HR Team" and the Hiring Company name
+- Concise (under 150 words)
+- DO NOT say "welcome to [previous company]" or mention joining their old employer
 
 Format your response EXACTLY as:
 Subject: [subject line here]
@@ -122,14 +130,20 @@ class OpenAIService(AIService):
 
     def generate_document_request(self, candidate_data: dict) -> dict:
         try:
+            hr_name = candidate_data.get('hr_name', 'HR Team')
+            hr_email = candidate_data.get('hr_email', '')
+            hr_company = candidate_data.get('hr_company') or 'the verification team'
+
             prompt = f"""Write a document request email for this candidate:
 
-Name: {candidate_data.get('name', 'Candidate')}
-Company: {candidate_data.get('company', 'their organization')}
-Designation: {candidate_data.get('designation', 'their role')}
+Candidate Name: {candidate_data.get('name', 'Candidate')}
+Previous Company (from resume): {candidate_data.get('company', 'N/A')}
+Previous Role (from resume): {candidate_data.get('designation', 'N/A')}
 Submission Link: {candidate_data.get('submission_link')}
+Hiring Company (requesting documents): {hr_company}
+HR Email: {hr_email if hr_email else 'N/A'}
 
-Request both PAN card and Aadhaar card for employment verification."""
+Write an email requesting PAN and Aadhaar for the hiring process at {hr_company}. Sign off as "HR Team, {hr_company}"."""
 
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -149,7 +163,7 @@ Request both PAN card and Aadhaar card for employment verification."""
                 subject = parts[0].replace('Subject:', '').strip()
                 body = parts[1].strip()
             else:
-                subject = "Document Submission Required - TraqCheck Verification"
+                subject = "Document Submission Required - Talently Verification"
                 body = content
 
             return {"success": True, "subject": subject, "body": body}
@@ -209,14 +223,20 @@ class ClaudeService(AIService):
 
     def generate_document_request(self, candidate_data: dict) -> dict:
         try:
+            hr_name = candidate_data.get('hr_name', 'HR Team')
+            hr_email = candidate_data.get('hr_email', '')
+            hr_company = candidate_data.get('hr_company') or 'the verification team'
+
             prompt = f"""Write a document request email for this candidate:
 
-Name: {candidate_data.get('name', 'Candidate')}
-Company: {candidate_data.get('company', 'their organization')}
-Designation: {candidate_data.get('designation', 'their role')}
+Candidate Name: {candidate_data.get('name', 'Candidate')}
+Previous Company (from resume): {candidate_data.get('company', 'N/A')}
+Previous Role (from resume): {candidate_data.get('designation', 'N/A')}
 Submission Link: {candidate_data.get('submission_link')}
+Hiring Company (requesting documents): {hr_company}
+HR Email: {hr_email if hr_email else 'N/A'}
 
-Request both PAN card and Aadhaar card for employment verification."""
+Write an email requesting PAN and Aadhaar for the hiring process at {hr_company}. Sign off as "HR Team, {hr_company}"."""
 
             response = self.client.messages.create(
                 model=self.model,
@@ -235,7 +255,7 @@ Request both PAN card and Aadhaar card for employment verification."""
                 subject = parts[0].replace('Subject:', '').strip()
                 body = parts[1].strip()
             else:
-                subject = "Document Submission Required - TraqCheck Verification"
+                subject = "Document Submission Required - Talently Verification"
                 body = content
 
             return {"success": True, "subject": subject, "body": body}
@@ -269,23 +289,28 @@ class MockAIService(AIService):
     def generate_document_request(self, candidate_data: dict) -> dict:
         name = candidate_data.get('name', 'Candidate')
         link = candidate_data.get('submission_link', '#')
+        hr_email = candidate_data.get('hr_email', '')
+        hr_company = candidate_data.get('hr_company') or 'Our Company'
+
+        contact_line = f"\n\nFor any questions, please contact us at {hr_email}." if hr_email else ""
 
         return {
             "success": True,
-            "subject": f"Document Submission Required - {name}",
+            "subject": f"Document Submission Required - {hr_company}",
             "body": f"""Dear {name},
 
-We hope this message finds you well. As part of our verification process, we kindly request you to submit the following documents:
+As part of our hiring process at {hr_company}, we kindly request you to submit the following identity documents for verification:
 
 1. PAN Card
 2. Aadhaar Card
 
 Please use this secure link to submit your documents: {link}
 
-Your documents are handled with strict confidentiality.
+Your documents are handled with strict confidentiality and used solely for employment verification.{contact_line}
 
 Best regards,
-TraqCheck Team"""
+HR Team
+{hr_company}"""
         }
 
 

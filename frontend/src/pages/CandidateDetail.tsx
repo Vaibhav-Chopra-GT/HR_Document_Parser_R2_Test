@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -53,6 +53,8 @@ export default function CandidateDetail() {
 
   // Confirmation modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Skills display state
   const [showAllSkills, setShowAllSkills] = useState(false);
@@ -94,6 +96,40 @@ export default function CandidateDetail() {
   useEffect(() => {
     fetchCandidate();
   }, [id]);
+
+  // Polling: auto-refresh when waiting for candidate to submit documents
+  const pollingRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Only poll when document_status is 'requested' (waiting for submission)
+    if (candidate?.document_status === 'requested') {
+      // Start polling every 10 seconds
+      pollingRef.current = window.setInterval(async () => {
+        try {
+          const result = await candidatesApi.get(candidate.id);
+          const newStatus = result.candidate.document_status;
+
+          // Check if status changed (candidate submitted documents)
+          if (newStatus !== 'requested') {
+            toast.success('Documents submitted by candidate!');
+            fetchCandidate(); // Full refresh including audit logs
+          } else {
+            // Just update candidate data silently
+            setCandidate(result.candidate);
+          }
+        } catch (error) {
+          // Silently ignore polling errors
+        }
+      }, 10000);
+    }
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [candidate?.document_status, candidate?.id]);
 
   const handleRequestDocuments = async () => {
     if (!candidate?.email) {
@@ -147,17 +183,24 @@ export default function CandidateDetail() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
+    if (!candidate) return;
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
     if (!candidate) return;
 
-    if (!confirm('Are you sure you want to delete this candidate?')) return;
-
+    setDeleting(true);
     try {
       await candidatesApi.delete(candidate.id);
       toast.success('Candidate deleted');
       navigate('/');
     } catch (error) {
       toast.error('Failed to delete candidate');
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -536,7 +579,7 @@ export default function CandidateDetail() {
               }`}
             >
               <Send className="h-5 w-5" />
-              {requesting ? 'Sending...' : 'Request PAN & Aadhaar'}
+              {requesting ? 'Generating email...' : 'Request PAN & Aadhaar'}
             </button>
 
             {!candidate.email && (
@@ -574,13 +617,13 @@ export default function CandidateDetail() {
                   </div>
                 </div>
                 {candidate.has_pan && (
-                  <a
-                    href={candidatesApi.getDocumentUrl(candidate.id, 'pan')}
-                    download
+                  <button
+                    onClick={() => candidatesApi.downloadDocument(candidate.id, 'pan')}
                     className="text-blue-600 hover:text-blue-800"
+                    title="Download PAN"
                   >
                     <Download className="h-5 w-5" />
-                  </a>
+                  </button>
                 )}
               </div>
 
@@ -601,13 +644,13 @@ export default function CandidateDetail() {
                   </div>
                 </div>
                 {candidate.has_aadhaar && (
-                  <a
-                    href={candidatesApi.getDocumentUrl(candidate.id, 'aadhaar')}
-                    download
+                  <button
+                    onClick={() => candidatesApi.downloadDocument(candidate.id, 'aadhaar')}
                     className="text-blue-600 hover:text-blue-800"
+                    title="Download Aadhaar"
                   >
                     <Download className="h-5 w-5" />
-                  </a>
+                  </button>
                 )}
               </div>
             </div>
@@ -623,10 +666,9 @@ export default function CandidateDetail() {
           {candidate.resume_original_name && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-4">Resume</h2>
-              <a
-                href={candidatesApi.getResumeUrl(candidate.id)}
-                download
-                className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100"
+              <button
+                onClick={() => candidatesApi.downloadResume(candidate.id, candidate.resume_original_name || undefined)}
+                className="w-full flex items-center gap-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 text-left"
               >
                 <FileText className="h-8 w-8 text-blue-500" />
                 <div className="flex-1">
@@ -634,7 +676,7 @@ export default function CandidateDetail() {
                   <p className="text-sm text-gray-500">Click to download</p>
                 </div>
                 <Download className="h-5 w-5 text-gray-400" />
-              </a>
+              </button>
             </div>
           )}
         </div>
@@ -704,6 +746,47 @@ export default function CandidateDetail() {
                   className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Send Request
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-red-100 rounded-full">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold">Delete Candidate</h3>
+              </div>
+
+              <p className="text-gray-600 mb-4">
+                Are you sure you want to delete <strong>{candidate?.name || 'this candidate'}</strong>?
+              </p>
+
+              <p className="text-sm text-gray-500 mb-6">
+                This will permanently remove the candidate record, including their resume and any submitted documents. This action cannot be undone.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={deleting}
+                  className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                  className="flex-1 py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleting ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </div>

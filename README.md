@@ -2,6 +2,8 @@
 
 > AI-powered resume parsing and secure document collection platform for HR teams.
 
+🚀 **Live Demo:** [https://talently-production-5186.up.railway.app](https://talently-production-5186.up.railway.app)
+
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5+-3178C6.svg)](https://typescriptlang.org)

@@ -5,12 +5,17 @@ import tempfile
 from werkzeug.utils import secure_filename
 from app.config import Config
 
-# Initialize Cloudinary if configured
-if Config.USE_CLOUD_STORAGE:
-    import cloudinary
-    import cloudinary.uploader
-    import cloudinary.api
-    cloudinary.config(secure=True)  # Uses CLOUDINARY_URL env var automatically
+# Initialize Cloudinary if configured (with validation)
+_cloudinary_available = False
+if Config.USE_CLOUD_STORAGE and Config.CLOUDINARY_URL:
+    if Config.CLOUDINARY_URL.startswith('cloudinary://'):
+        import cloudinary
+        import cloudinary.uploader
+        import cloudinary.api
+        cloudinary.config(secure=True)  # Uses CLOUDINARY_URL env var automatically
+        _cloudinary_available = True
+    else:
+        print(f"Warning: Invalid CLOUDINARY_URL format, falling back to local storage")
 
 
 def get_file_extension(filename):
@@ -104,7 +109,7 @@ def save_file(file, file_type, candidate_id):
     if is_encrypted:
         file_content = encrypt_file_data(file_content)
 
-    if Config.USE_CLOUD_STORAGE:
+    if _cloudinary_available:
         return _save_to_cloudinary(file_content, file_type, secure_name, original_name, size, file_hash, is_encrypted)
     else:
         return _save_locally(file_content, file_type, secure_name, original_name, size, file_hash, is_encrypted)

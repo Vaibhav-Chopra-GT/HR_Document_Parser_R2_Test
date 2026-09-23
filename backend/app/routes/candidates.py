@@ -101,7 +101,27 @@ def upload_resume():
     db.session.commit()
 
     try:
-        # Save file
+        import tempfile
+        from app.utils.file_handler import get_file_extension
+
+        # Save to temp file first for parsing (before cloud upload)
+        original_ext = get_file_extension(file.filename)
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{original_ext}')
+        file.save(temp_file.name)
+        temp_file.close()
+
+        # Parse resume from temp file
+        parser = ResumeParser()
+        result = parser.parse_resume(temp_file.name)
+
+        # Clean up temp file
+        try:
+            os.unlink(temp_file.name)
+        except:
+            pass
+
+        # Reset file position and save to storage (local or cloud)
+        file.seek(0)
         file_info = save_file(file, 'resume', candidate.id)
         candidate.resume_filename = file_info['filename']
         candidate.resume_original_name = file_info['original_name']
@@ -114,10 +134,6 @@ def upload_resume():
             'hr',
             {"filename": file_info['original_name'], "size": file_info['size']}
         )
-
-        # Parse resume
-        parser = ResumeParser()
-        result = parser.parse_resume(file_info['path'])
 
         if not result['success']:
             candidate.extraction_status = 'failed'
@@ -511,10 +527,18 @@ def reprocess_resume(candidate_id):
     db.session.commit()
 
     try:
-        file_path = get_file_path(candidate.resume_filename, 'resume')
+        # Get file for parsing (handles cloud storage download)
+        file_path, is_temp = get_file_for_download(candidate.resume_filename, 'resume')
 
         parser = ResumeParser()
         result = parser.parse_resume(file_path)
+
+        # Clean up temp file if from cloud storage
+        if is_temp:
+            try:
+                os.unlink(file_path)
+            except:
+                pass
 
         if not result['success']:
             candidate.extraction_status = 'failed'

@@ -493,19 +493,27 @@ def download_document(candidate_id, doc_type):
     try:
         file_path, is_temp = get_file_for_download(filename, 'document')
 
-        # Determine mimetype from original filename
-        download_name = original_name or filename.replace('.enc', '')
-        mimetype, _ = mimetypes.guess_type(download_name)
+        # Get extension from stored filename (more reliable)
+        # filename is like "abc.png.enc" -> extract "png"
+        stored_ext = ''
+        if filename.endswith('.enc'):
+            base = filename[:-4]  # Remove ".enc"
+            if '.' in base:
+                stored_ext = base.rsplit('.', 1)[1].lower()
 
-        # Force correct mimetypes for common document types
-        if download_name.lower().endswith('.pdf'):
-            mimetype = 'application/pdf'
-        elif download_name.lower().endswith(('.jpg', '.jpeg')):
-            mimetype = 'image/jpeg'
-        elif download_name.lower().endswith('.png'):
-            mimetype = 'image/png'
-        elif not mimetype:
-            mimetype = 'application/octet-stream'
+        # Determine download name
+        download_name = original_name if original_name else filename.replace('.enc', '')
+
+        # Force correct mimetypes based on stored extension
+        mimetype_map = {
+            'pdf': 'application/pdf',
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+        }
+        mimetype = mimetype_map.get(stored_ext, 'application/octet-stream')
+
+        print(f"[DEBUG] Download: stored_ext={stored_ext}, mimetype={mimetype}, download_name={download_name}")
 
         response = send_file(
             file_path,

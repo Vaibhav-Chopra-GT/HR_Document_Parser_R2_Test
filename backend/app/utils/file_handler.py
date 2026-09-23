@@ -145,7 +145,12 @@ def _save_to_cloudinary(file_content, file_type, secure_name, original_name, siz
     import io
 
     folder = f"talently/{file_type}s"
-    public_id = f"{folder}/{secure_name.rsplit('.', 1)[0]}"
+    # Get base name for public_id (remove .enc if present)
+    if secure_name.endswith('.enc'):
+        base_name = secure_name[:-4]  # Remove ".enc" -> "abc.pdf"
+    else:
+        base_name = secure_name.rsplit('.', 1)[0] if '.' in secure_name else secure_name
+    public_id = f"{folder}/{base_name}"
 
     # Upload to Cloudinary as raw file (since it may be encrypted)
     result = cloudinary.uploader.upload(
@@ -169,10 +174,14 @@ def _save_to_cloudinary(file_content, file_type, secure_name, original_name, siz
 
 def get_file_path(filename, file_type):
     """Get full path/URL to a stored file"""
-    if Config.USE_CLOUD_STORAGE:
+    if _cloudinary_available:
         folder = f"talently/{file_type}s"
-        # Remove .enc if present for public_id
-        base_name = filename.rsplit('.', 1)[0] if filename.endswith('.enc') else filename.rsplit('.', 1)[0]
+        # Remove .enc to get base name for public_id
+        if filename.endswith('.enc'):
+            # filename like "abc.pdf.enc" -> base is "abc.pdf"
+            base_name = filename[:-4]  # Remove ".enc"
+        else:
+            base_name = filename.rsplit('.', 1)[0] if '.' in filename else filename
         public_id = f"{folder}/{base_name}"
         return cloudinary.CloudinaryResource(public_id, resource_type="raw").build_url()
     else:
@@ -184,9 +193,12 @@ def get_file_path(filename, file_type):
 
 def delete_file(filename, file_type):
     """Delete a stored file"""
-    if Config.USE_CLOUD_STORAGE:
+    if _cloudinary_available:
         folder = f"talently/{file_type}s"
-        base_name = filename.rsplit('.', 1)[0] if filename.endswith('.enc') else filename.rsplit('.', 1)[0]
+        if filename.endswith('.enc'):
+            base_name = filename[:-4]
+        else:
+            base_name = filename.rsplit('.', 1)[0] if '.' in filename else filename
         public_id = f"{folder}/{base_name}"
         try:
             cloudinary.uploader.destroy(public_id, resource_type="raw")
@@ -208,7 +220,7 @@ def get_file_for_download(filename, file_type):
     """
     is_encrypted = filename.endswith('.enc')
 
-    if Config.USE_CLOUD_STORAGE:
+    if _cloudinary_available:
         import requests
 
         url = get_file_path(filename, file_type)

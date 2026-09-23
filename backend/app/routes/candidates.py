@@ -471,6 +471,8 @@ def download_document(candidate_id, doc_type):
     GET /api/candidates/<id>/documents/pan
     GET /api/candidates/<id>/documents/aadhaar
     """
+    import mimetypes
+
     current_user = get_current_user()
     candidate = get_candidate_or_403(candidate_id, current_user.id)
     if not candidate:
@@ -490,9 +492,17 @@ def download_document(candidate_id, doc_type):
 
     try:
         file_path, is_temp = get_file_for_download(filename, 'document')
+
+        # Determine mimetype from original filename
+        download_name = original_name or filename.replace('.enc', '')
+        mimetype, _ = mimetypes.guess_type(download_name)
+        if not mimetype:
+            mimetype = 'application/octet-stream'
+
         response = send_file(
             file_path,
-            download_name=original_name or filename,
+            download_name=download_name,
+            mimetype=mimetype,
             as_attachment=True
         )
         # Clean up temp file after sending (for cloud storage)

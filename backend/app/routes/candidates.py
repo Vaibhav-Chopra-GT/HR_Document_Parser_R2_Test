@@ -488,7 +488,7 @@ def download_document(candidate_id, doc_type):
         return jsonify({"error": "Invalid document type"}), 400
 
     if not filename:
-        return jsonify({"error": f"No {doc_type} document found"}), 404
+        return jsonify({"error": f"No {doc_type} document found", "detail": "filename is empty in database"}), 404
 
     try:
         file_path, is_temp = get_file_for_download(filename, 'document')
@@ -496,7 +496,15 @@ def download_document(candidate_id, doc_type):
         # Determine mimetype from original filename
         download_name = original_name or filename.replace('.enc', '')
         mimetype, _ = mimetypes.guess_type(download_name)
-        if not mimetype:
+
+        # Force correct mimetypes for common document types
+        if download_name.lower().endswith('.pdf'):
+            mimetype = 'application/pdf'
+        elif download_name.lower().endswith(('.jpg', '.jpeg')):
+            mimetype = 'image/jpeg'
+        elif download_name.lower().endswith('.png'):
+            mimetype = 'image/png'
+        elif not mimetype:
             mimetype = 'application/octet-stream'
 
         response = send_file(
@@ -514,8 +522,17 @@ def download_document(candidate_id, doc_type):
                 except:
                     pass
         return response
-    except FileNotFoundError:
-        return jsonify({"error": f"{doc_type} file not found"}), 404
+    except FileNotFoundError as e:
+        return jsonify({
+            "error": f"{doc_type} file not found",
+            "filename": filename,
+            "original_name": original_name
+        }), 404
+    except Exception as e:
+        return jsonify({
+            "error": f"Download failed: {str(e)}",
+            "filename": filename
+        }), 500
 
 
 @candidates_bp.route('/<candidate_id>/reprocess', methods=['POST'])

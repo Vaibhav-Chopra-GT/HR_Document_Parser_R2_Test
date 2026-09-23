@@ -152,6 +152,11 @@ def _save_to_cloudinary(file_content, file_type, secure_name, original_name, siz
         base_name = secure_name.rsplit('.', 1)[0] if '.' in secure_name else secure_name
     public_id = f"{folder}/{base_name}"
 
+    print(f"[DEBUG] Saving to Cloudinary:")
+    print(f"[DEBUG]   secure_name: {secure_name}")
+    print(f"[DEBUG]   public_id: {public_id}")
+    print(f"[DEBUG]   content_size: {len(file_content)}")
+
     # Upload to Cloudinary as raw file (since it may be encrypted)
     result = cloudinary.uploader.upload(
         io.BytesIO(file_content),
@@ -159,6 +164,9 @@ def _save_to_cloudinary(file_content, file_type, secure_name, original_name, siz
         resource_type="raw",  # Use raw for encrypted files
         overwrite=True
     )
+
+    print(f"[DEBUG]   result_public_id: {result.get('public_id')}")
+    print(f"[DEBUG]   result_url: {result.get('secure_url')}")
 
     return {
         'filename': secure_name,
@@ -224,10 +232,12 @@ def get_file_for_download(filename, file_type):
         import requests
 
         url = get_file_path(filename, file_type)
+        print(f"[DEBUG] Cloudinary URL: {url}")
+        print(f"[DEBUG] Filename: {filename}")
         response = requests.get(url)
 
         if response.status_code != 200:
-            raise FileNotFoundError(f"File not found in cloud storage")
+            raise FileNotFoundError(f"File not found in cloud storage. URL: {url}, Status: {response.status_code}")
 
         file_content = response.content
 

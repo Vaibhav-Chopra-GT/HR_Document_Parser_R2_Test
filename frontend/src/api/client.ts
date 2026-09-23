@@ -189,7 +189,7 @@ export const candidatesApi = {
     }
 
     // Create blob with correct MIME type from response headers
-    const contentType = response.headers['content-type'] || 'application/octet-stream';
+    const contentType = (response.headers['content-type'] as string) || 'application/octet-stream';
     const blob = new Blob([response.data], { type: contentType });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -218,7 +218,7 @@ export const candidatesApi = {
     }
 
     // Create blob with correct MIME type from response headers
-    const contentType = response.headers['content-type'] || 'application/octet-stream';
+    const contentType = (response.headers['content-type'] as string) || 'application/octet-stream';
     const blob = new Blob([response.data], { type: contentType });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');

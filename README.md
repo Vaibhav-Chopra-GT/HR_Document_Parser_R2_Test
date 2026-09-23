@@ -295,6 +295,126 @@ def list_candidates():
 
 ---
 
+## Email Service (Resend)
+
+Talently uses **Resend** for transactional email delivery with a custom domain.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      EMAIL FLOW                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+  │ HR Clicks    │───►│ LangChain    │───►│ Resend API   │───►│ Candidate    │
+  │ "Request     │    │ Generates    │    │ Sends Email  │    │ Receives     │
+  │  Documents"  │    │ Email        │    │              │    │ Email        │
+  └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+                             │
+                             ▼
+                      ┌──────────────┐
+                      │ Personalized │
+                      │ Subject +    │
+                      │ Body         │
+                      └──────────────┘
+```
+
+### Configuration
+
+```python
+# Environment Variables
+RESEND_API_KEY=re_xxxxxxxxxx
+EMAIL_FROM=Talently <noreply@talently.lol>
+```
+
+### Email Types
+
+| Email | Trigger | Content |
+|-------|---------|---------|
+| **Document Request** | HR clicks "Request Documents" | AI-generated personalized request with secure link |
+| **Confirmation** | Candidate submits documents | Thank you + next steps |
+
+### Email Logging
+
+All emails are logged in `email_logs` table:
+- `status`: pending → sent → delivered / failed / bounced
+- `resend_message_id`: For tracking delivery
+- `error_message`: If delivery failed
+
+---
+
+## Cloud Storage (Cloudinary)
+
+Files are stored in **Cloudinary** for persistence across deployments.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    FILE STORAGE FLOW                             │
+└─────────────────────────────────────────────────────────────────┘
+
+  RESUME UPLOAD (not encrypted - needs AI parsing):
+  
+  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+  │ PDF/DOCX     │───►│ Save to      │───►│ Cloudinary   │
+  │ Upload       │    │ Temp File    │    │ (raw)        │
+  └──────────────┘    └──────────────┘    └──────────────┘
+         │
+         ▼
+  ┌──────────────┐
+  │ Parse with   │
+  │ pdfplumber   │
+  └──────────────┘
+
+
+  DOCUMENT UPLOAD (PAN/Aadhaar - encrypted):
+  
+  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+  │ Image/PDF    │───►│ Validate     │───►│ AES-256      │───►│ Cloudinary   │
+  │ Upload       │    │ (PIL)        │    │ Encrypt      │    │ (.enc file)  │
+  └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+
+
+  DOCUMENT DOWNLOAD:
+  
+  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+  │ HR Requests  │───►│ Fetch from   │───►│ AES-256      │───►│ Send to      │
+  │ Download     │    │ Cloudinary   │    │ Decrypt      │    │ Browser      │
+  └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+```
+
+### Configuration
+
+```python
+# Environment Variable (from Cloudinary dashboard)
+CLOUDINARY_URL=cloudinary://api_key:api_secret@cloud_name
+```
+
+### Storage Structure
+
+```
+cloudinary://
+├── talently/
+│   ├── resumes/           # Unencrypted (need parsing)
+│   │   └── {candidate_id}_{uuid}.pdf
+│   └── documents/         # AES-256 encrypted
+│       ├── {candidate_id}_pan_{uuid}.pdf.enc
+│       └── {candidate_id}_aadhaar_{uuid}.jpg.enc
+```
+
+### Why Cloudinary?
+
+| Feature | Benefit |
+|---------|---------|
+| **Persistent Storage** | Files survive Railway redeploys |
+| **Free Tier** | 25GB storage, 25GB bandwidth/month |
+| **Raw File Support** | Store encrypted binary files |
+| **Secure URLs** | HTTPS delivery |
+
+### Local Fallback
+
+When `CLOUDINARY_URL` is not set, files are stored locally in `backend/uploads/`. This is used for local development.
+
+---
+
 ## Resume Parsing Pipeline
 
 The resume parsing system extracts text from uploaded files and uses AI to structure the data.

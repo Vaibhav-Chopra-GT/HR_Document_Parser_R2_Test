@@ -5,6 +5,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def get_database_url():
+    """Get database URL, fixing Railway's postgres:// to postgresql://"""
+    url = os.environ.get('DATABASE_URL', 'sqlite:///talently.db')
+    # Railway uses postgres:// but SQLAlchemy requires postgresql://
+    if url.startswith('postgres://'):
+        url = url.replace('postgres://', 'postgresql://', 1)
+    return url
+
+
 class Config:
     """Application configuration"""
 
@@ -12,7 +21,7 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
     # Database
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///talently.db')
+    SQLALCHEMY_DATABASE_URI = get_database_url()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # JWT
@@ -41,6 +50,10 @@ class Config:
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB max
     ALLOWED_RESUME_EXTENSIONS = {'pdf', 'docx'}
     ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}
+
+    # Cloud Storage (Cloudinary) - optional, falls back to local storage
+    CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL')  # Full URL from Cloudinary dashboard
+    USE_CLOUD_STORAGE = bool(os.environ.get('CLOUDINARY_URL'))
 
     # Token expiry (days)
     SUBMISSION_TOKEN_EXPIRY_DAYS = 7

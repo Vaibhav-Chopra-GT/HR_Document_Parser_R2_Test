@@ -121,7 +121,7 @@ export default function SubmitDocuments() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <div className="animate-spin h-8 w-8 border-4 border-violet-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-gray-600">Validating your link...</p>
         </div>
       </div>
@@ -137,7 +137,7 @@ export default function SubmitDocuments() {
           <p className="text-gray-600">
             This link is invalid or has expired. Please contact{' '}
             {hrEmail ? (
-              <a href={`mailto:${hrEmail}`} className="text-blue-600 hover:underline">{hrEmail}</a>
+              <a href={`mailto:${hrEmail}`} className="text-violet-600 hover:underline">{hrEmail}</a>
             ) : (
               'the HR team'
             )}{' '}
@@ -165,7 +165,7 @@ export default function SubmitDocuments() {
           <p className="text-sm text-gray-500">
             If you need to update your documents, please contact{' '}
             {hrEmail ? (
-              <a href={`mailto:${hrEmail}`} className="text-blue-600 hover:underline">{hrEmail}</a>
+              <a href={`mailto:${hrEmail}`} className="text-violet-600 hover:underline">{hrEmail}</a>
             ) : (
               'the HR team'
             )}{' '}
@@ -207,11 +207,11 @@ export default function SubmitDocuments() {
         </div>
 
         {/* Security Notice */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-          <Shield className="h-5 w-5 text-blue-500 mt-0.5" />
+        <div className="bg-violet-50 border border-violet-200 rounded-lg p-4 mb-6 flex items-start gap-3">
+          <Shield className="h-5 w-5 text-violet-500 mt-0.5" />
           <div>
-            <p className="text-sm text-blue-800 font-medium">Secure Upload</p>
-            <p className="text-sm text-blue-700">
+            <p className="text-sm text-violet-800 font-medium">Secure Upload</p>
+            <p className="text-sm text-violet-700">
               Your documents are encrypted and will only be used for verification purposes.
             </p>
           </div>
@@ -250,7 +250,7 @@ export default function SubmitDocuments() {
               {...panDropzone.getRootProps()}
               className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
                 panDropzone.isDragActive
-                  ? 'border-blue-500 bg-blue-50'
+                  ? 'border-violet-500 bg-violet-50'
                   : 'border-gray-300 hover:border-gray-400'
               }`}
             >
@@ -264,7 +264,7 @@ export default function SubmitDocuments() {
           ) : (
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-3">
-                <FileText className="h-8 w-8 text-blue-500" />
+                <FileText className="h-8 w-8 text-violet-500" />
                 <div>
                   <p className="font-medium">{panFile.name}</p>
                   <p className="text-sm text-gray-500">
@@ -298,7 +298,7 @@ export default function SubmitDocuments() {
               {...aadhaarDropzone.getRootProps()}
               className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
                 aadhaarDropzone.isDragActive
-                  ? 'border-blue-500 bg-blue-50'
+                  ? 'border-violet-500 bg-violet-50'
                   : 'border-gray-300 hover:border-gray-400'
               }`}
             >
@@ -312,7 +312,7 @@ export default function SubmitDocuments() {
           ) : (
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-3">
-                <FileText className="h-8 w-8 text-blue-500" />
+                <FileText className="h-8 w-8 text-violet-500" />
                 <div>
                   <p className="font-medium">{aadhaarFile.name}</p>
                   <p className="text-sm text-gray-500">
@@ -337,7 +337,7 @@ export default function SubmitDocuments() {
           className={`w-full py-3 px-4 rounded-lg font-medium text-white transition-colors ${
             submitting || (!panFile && !aadhaarFile)
               ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700'
+              : 'bg-violet-600 hover:bg-violet-700'
           }`}
         >
           {submitting ? 'Submitting...' : 'Submit Documents'}
@@ -346,7 +346,7 @@ export default function SubmitDocuments() {
         <p className="text-center text-sm text-gray-500 mt-4">
           Having trouble? Contact{' '}
           {hrEmail ? (
-            <a href={`mailto:${hrEmail}`} className="text-blue-600 hover:underline">{hrEmail}</a>
+            <a href={`mailto:${hrEmail}`} className="text-violet-600 hover:underline">{hrEmail}</a>
           ) : (
             'the HR team'
           )}{' '}

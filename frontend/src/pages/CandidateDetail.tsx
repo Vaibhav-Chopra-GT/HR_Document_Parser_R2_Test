@@ -341,7 +341,7 @@ export default function CandidateDetail() {
             {!isEditing ? (
               <button
                 onClick={handleStartEdit}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg"
+                className="flex items-center gap-1 px-3 py-1.5 text-sm text-violet-600 hover:bg-violet-50 rounded-lg"
               >
                 <Edit3 className="h-4 w-4" />
                 Edit
@@ -359,7 +359,7 @@ export default function CandidateDetail() {
                 <button
                   onClick={handleSaveEdit}
                   disabled={saving}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-white bg-violet-600 hover:bg-violet-700 rounded-lg"
                 >
                   <Save className="h-4 w-4" />
                   {saving ? 'Saving...' : 'Save'}
@@ -393,7 +393,7 @@ export default function CandidateDetail() {
                     type="email"
                     value={editData.email}
                     onChange={(e) => setEditData({...editData, email: e.target.value})}
-                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   />
                 ) : (
                   <p className="font-medium">{candidate.email || 'Not found'}</p>
@@ -412,7 +412,7 @@ export default function CandidateDetail() {
                     type="tel"
                     value={editData.phone}
                     onChange={(e) => setEditData({...editData, phone: e.target.value})}
-                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   />
                 ) : (
                   <p className="font-medium">{candidate.phone || 'Not found'}</p>
@@ -431,7 +431,7 @@ export default function CandidateDetail() {
                     type="text"
                     value={editData.company}
                     onChange={(e) => setEditData({...editData, company: e.target.value})}
-                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   />
                 ) : (
                   <p className="font-medium">{candidate.company || 'Not found'}</p>
@@ -450,7 +450,7 @@ export default function CandidateDetail() {
                     type="text"
                     value={editData.designation}
                     onChange={(e) => setEditData({...editData, designation: e.target.value})}
-                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   />
                 ) : (
                   <p className="font-medium">{candidate.designation || 'Not found'}</p>
@@ -468,12 +468,12 @@ export default function CandidateDetail() {
                     {editData.skills.map((skill, i) => (
                       <span
                         key={i}
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm"
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-violet-100 text-violet-800 rounded text-sm"
                       >
                         {skill}
                         <button
                           onClick={() => handleRemoveSkill(skill)}
-                          className="hover:text-blue-600"
+                          className="hover:text-violet-600"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -487,11 +487,11 @@ export default function CandidateDetail() {
                       onChange={(e) => setNewSkill(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleAddSkill()}
                       placeholder="Add skill..."
-                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     />
                     <button
                       onClick={handleAddSkill}
-                      className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                      className="px-3 py-1 text-sm bg-violet-600 text-white rounded hover:bg-violet-700"
                     >
                       Add
                     </button>
@@ -504,7 +504,7 @@ export default function CandidateDetail() {
                       displayedSkills.map((skill: string, i: number) => (
                         <span
                           key={i}
-                          className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm"
+                          className="px-2 py-1 bg-violet-100 text-violet-800 rounded text-sm"
                         >
                           {skill}
                         </span>
@@ -516,7 +516,7 @@ export default function CandidateDetail() {
                   {hasMoreSkills && (
                     <button
                       onClick={() => setShowAllSkills(!showAllSkills)}
-                      className="mt-2 flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+                      className="mt-2 flex items-center gap-1 text-sm text-violet-600 hover:text-violet-800"
                     >
                       {showAllSkills ? (
                         <>
@@ -575,7 +575,7 @@ export default function CandidateDetail() {
               className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium text-white transition-colors ${
                 requesting || !candidate.email
                   ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-violet-600 hover:bg-violet-700'
               }`}
             >
               <Send className="h-5 w-5" />
@@ -619,7 +619,7 @@ export default function CandidateDetail() {
                 {candidate.has_pan && (
                   <button
                     onClick={() => candidatesApi.downloadDocument(candidate.id, 'pan')}
-                    className="text-blue-600 hover:text-blue-800"
+                    className="text-violet-600 hover:text-violet-800"
                     title="Download PAN"
                   >
                     <Download className="h-5 w-5" />
@@ -646,7 +646,7 @@ export default function CandidateDetail() {
                 {candidate.has_aadhaar && (
                   <button
                     onClick={() => candidatesApi.downloadDocument(candidate.id, 'aadhaar')}
-                    className="text-blue-600 hover:text-blue-800"
+                    className="text-violet-600 hover:text-violet-800"
                     title="Download Aadhaar"
                   >
                     <Download className="h-5 w-5" />
@@ -670,7 +670,7 @@ export default function CandidateDetail() {
                 onClick={() => candidatesApi.downloadResume(candidate.id, candidate.resume_original_name || undefined)}
                 className="w-full flex items-center gap-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 text-left"
               >
-                <FileText className="h-8 w-8 text-blue-500" />
+                <FileText className="h-8 w-8 text-violet-500" />
                 <div className="flex-1">
                   <p className="font-medium">{candidate.resume_original_name}</p>
                   <p className="text-sm text-gray-500">Click to download</p>
@@ -688,7 +688,7 @@ export default function CandidateDetail() {
         <div className="space-y-3">
           {auditLogs.map((log) => (
             <div key={log.id} className="flex items-start gap-3 text-sm">
-              <div className="w-2 h-2 mt-2 rounded-full bg-blue-500"></div>
+              <div className="w-2 h-2 mt-2 rounded-full bg-violet-500"></div>
               <div className="flex-1">
                 <p className="text-gray-900">
                   <span className="font-medium">{log.action.replace(/_/g, ' ')}</span>
@@ -743,7 +743,7 @@ export default function CandidateDetail() {
                 </button>
                 <button
                   onClick={sendDocumentRequest}
-                  className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="flex-1 py-2 px-4 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
                 >
                   Send Request
                 </button>
@@ -812,7 +812,7 @@ export default function CandidateDetail() {
               </div>
               <button
                 onClick={() => setShowEmailPreview(false)}
-                className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="w-full py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700"
               >
                 Close
               </button>

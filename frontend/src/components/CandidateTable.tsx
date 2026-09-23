@@ -12,14 +12,14 @@ const StatusBadge = ({ status, type }: { status: string; type: 'extraction' | 'd
   const configs = {
     extraction: {
       completed: { bg: 'bg-green-100', text: 'text-green-800', icon: CheckCircle },
-      processing: { bg: 'bg-blue-100', text: 'text-blue-800', icon: Clock },
+      processing: { bg: 'bg-violet-100', text: 'text-violet-800', icon: Clock },
       pending: { bg: 'bg-gray-100', text: 'text-gray-800', icon: Clock },
       failed: { bg: 'bg-red-100', text: 'text-red-800', icon: XCircle },
     },
     document: {
       completed: { bg: 'bg-green-100', text: 'text-green-800', icon: CheckCircle },
       partial: { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: AlertCircle },
-      requested: { bg: 'bg-blue-100', text: 'text-blue-800', icon: Mail },
+      requested: { bg: 'bg-violet-100', text: 'text-violet-800', icon: Mail },
       pending: { bg: 'bg-gray-100', text: 'text-gray-800', icon: Clock },
     },
   };
@@ -152,7 +152,7 @@ export default function CandidateTable({ candidates, loading }: CandidateTablePr
                       e.stopPropagation();
                       navigate(`/candidates/${candidate.id}`);
                     }}
-                    className="text-blue-600 hover:text-blue-800"
+                    className="text-violet-600 hover:text-violet-800"
                   >
                     <Eye className="h-5 w-5" />
                   </button>

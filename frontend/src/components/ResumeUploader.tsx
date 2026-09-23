@@ -116,12 +116,12 @@ export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps)
         <div
           {...getRootProps()}
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-            ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}`}
+            ${isDragActive ? 'border-violet-500 bg-violet-50' : 'border-gray-300 hover:border-gray-400'}`}
         >
           <input {...getInputProps()} />
           <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           {isDragActive ? (
-            <p className="text-blue-600">Drop the resume here...</p>
+            <p className="text-violet-600">Drop the resume here...</p>
           ) : (
             <>
               <p className="text-gray-600 mb-2">
@@ -135,7 +135,7 @@ export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps)
         <div className="border rounded-lg p-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <FileText className="h-8 w-8 text-blue-500" />
+              <FileText className="h-8 w-8 text-violet-500" />
               <div>
                 <p className="font-medium">{selectedFile.name}</p>
                 <p className="text-sm text-gray-500">
@@ -163,13 +163,13 @@ export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps)
                   </div>
                   <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-blue-500 transition-all duration-300"
+                      className="h-full bg-violet-500 transition-all duration-300"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
                 </>
               ) : (
-                <div className="flex items-center gap-3 text-blue-600">
+                <div className="flex items-center gap-3 text-violet-600">
                   <Loader2 className="h-5 w-5 animate-spin" />
                   <span className="text-sm font-medium">Extracting data with AI...</span>
                 </div>
@@ -220,7 +220,7 @@ export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps)
               className={`w-full py-2 px-4 rounded-lg font-medium text-white transition-colors
                 ${uploading
                   ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-violet-600 hover:bg-violet-700'
                 }`}
             >
               {uploading ? 'Processing...' : 'Upload & Parse Resume'}

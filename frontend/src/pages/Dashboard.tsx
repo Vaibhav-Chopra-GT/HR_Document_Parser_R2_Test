@@ -138,7 +138,7 @@ export default function Dashboard() {
                 placeholder="Search by name, email, or company..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               />
             </div>
           </form>
@@ -146,7 +146,7 @@ export default function Dashboard() {
           <select
             value={status}
             onChange={(e) => handleFilterChange('status', e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500"
           >
             <option value="">All Extraction Status</option>
             <option value="completed">Completed</option>
@@ -158,7 +158,7 @@ export default function Dashboard() {
           <select
             value={docStatus}
             onChange={(e) => handleFilterChange('doc_status', e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500"
           >
             <option value="">All Document Status</option>
             <option value="completed">Completed</option>

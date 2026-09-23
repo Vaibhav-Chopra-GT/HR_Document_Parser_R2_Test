@@ -6,7 +6,8 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import db, Candidate, AuditLog, User
-from app.utils.file_handler import save_file, get_file_path, allowed_file
+from app.utils.file_handler import save_file, get_file_path, allowed_file, get_file_for_download
+import os
 from app.utils.audit_logger import AuditLogger, AuditActions
 from app.services.resume_parser import ResumeParser
 from app.services.ai_service import get_ai_service
@@ -426,13 +427,24 @@ def download_resume(candidate_id):
     if not candidate.resume_filename:
         return jsonify({"error": "No resume found"}), 404
 
-    file_path = get_file_path(candidate.resume_filename, 'resume')
-
-    return send_file(
-        file_path,
-        download_name=candidate.resume_original_name or candidate.resume_filename,
-        as_attachment=True
-    )
+    try:
+        file_path, is_temp = get_file_for_download(candidate.resume_filename, 'resume')
+        response = send_file(
+            file_path,
+            download_name=candidate.resume_original_name or candidate.resume_filename,
+            as_attachment=True
+        )
+        # Clean up temp file after sending (for cloud storage)
+        if is_temp:
+            @response.call_on_close
+            def cleanup():
+                try:
+                    os.unlink(file_path)
+                except:
+                    pass
+        return response
+    except FileNotFoundError:
+        return jsonify({"error": "Resume file not found"}), 404
 
 
 @candidates_bp.route('/<candidate_id>/documents/<doc_type>', methods=['GET'])
@@ -460,13 +472,24 @@ def download_document(candidate_id, doc_type):
     if not filename:
         return jsonify({"error": f"No {doc_type} document found"}), 404
 
-    file_path = get_file_path(filename, 'document')
-
-    return send_file(
-        file_path,
-        download_name=original_name or filename,
-        as_attachment=True
-    )
+    try:
+        file_path, is_temp = get_file_for_download(filename, 'document')
+        response = send_file(
+            file_path,
+            download_name=original_name or filename,
+            as_attachment=True
+        )
+        # Clean up temp file after sending (for cloud storage)
+        if is_temp:
+            @response.call_on_close
+            def cleanup():
+                try:
+                    os.unlink(file_path)
+                except:
+                    pass
+        return response
+    except FileNotFoundError:
+        return jsonify({"error": f"{doc_type} file not found"}), 404
 
 
 @candidates_bp.route('/<candidate_id>/reprocess', methods=['POST'])

@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "talently-frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "serve dist -s -l $PORT"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.103.2",
@@ -18,7 +19,8 @@
     "react-dom": "^19.2.8",
     "react-dropzone": "^20.1.2",
     "react-hot-toast": "^2.6.1",
-    "react-router-dom": "^7.18.4"
+    "react-router-dom": "^7.18.4",
+    "serve": "^14.2.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

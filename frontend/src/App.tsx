@@ -7,7 +7,7 @@ import CandidateDetail from './pages/CandidateDetail';
 import SubmitDocuments from './pages/SubmitDocuments';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
-import { LogOut, User } from 'lucide-react';
+import { LogOut, User, Sparkles } from 'lucide-react';
 
 function Header() {
   const { user, logout } = useAuth();
@@ -17,8 +17,8 @@ function Header() {
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">TQ</span>
+            <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-purple-600 rounded-lg flex items-center justify-center">
+              <Sparkles className="h-4 w-4 text-white" />
             </div>
             <h1 className="text-xl font-bold text-gray-900">Talently</h1>
           </div>

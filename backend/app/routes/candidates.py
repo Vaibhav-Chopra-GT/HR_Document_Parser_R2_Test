@@ -471,7 +471,7 @@ def download_document(candidate_id, doc_type):
     GET /api/candidates/<id>/documents/pan
     GET /api/candidates/<id>/documents/aadhaar
     """
-    import mimetypes
+    from flask import Response, make_response
 
     current_user = get_current_user()
     candidate = get_candidate_or_403(candidate_id, current_user.id)
@@ -488,59 +488,53 @@ def download_document(candidate_id, doc_type):
         return jsonify({"error": "Invalid document type"}), 400
 
     if not filename:
-        return jsonify({"error": f"No {doc_type} document found", "detail": "filename is empty in database"}), 404
+        return jsonify({"error": f"No {doc_type} document found"}), 404
 
     try:
         file_path, is_temp = get_file_for_download(filename, 'document')
 
-        # Get extension from stored filename (more reliable)
-        # filename is like "abc.png.enc" -> extract "png"
+        # Read the decrypted file
+        with open(file_path, 'rb') as f:
+            file_data = f.read()
+
+        # Clean up temp file
+        if is_temp:
+            try:
+                os.unlink(file_path)
+            except:
+                pass
+
+        # Get extension: "abc.png.enc" -> "png"
         stored_ext = ''
         if filename.endswith('.enc'):
-            base = filename[:-4]  # Remove ".enc"
+            base = filename[:-4]
             if '.' in base:
                 stored_ext = base.rsplit('.', 1)[1].lower()
 
-        # Determine download name
-        download_name = original_name if original_name else filename.replace('.enc', '')
+        # Download filename
+        download_name = original_name if original_name else (base if filename.endswith('.enc') else filename)
 
-        # Force correct mimetypes based on stored extension
-        mimetype_map = {
+        # Content type
+        content_types = {
             'pdf': 'application/pdf',
             'png': 'image/png',
             'jpg': 'image/jpeg',
             'jpeg': 'image/jpeg',
         }
-        mimetype = mimetype_map.get(stored_ext, 'application/octet-stream')
+        content_type = content_types.get(stored_ext, 'application/octet-stream')
 
-        print(f"[DEBUG] Download: stored_ext={stored_ext}, mimetype={mimetype}, download_name={download_name}")
+        # Create response with explicit headers
+        response = make_response(file_data)
+        response.headers['Content-Type'] = content_type
+        response.headers['Content-Disposition'] = f'attachment; filename="{download_name}"'
+        response.headers['Content-Length'] = len(file_data)
 
-        response = send_file(
-            file_path,
-            download_name=download_name,
-            mimetype=mimetype,
-            as_attachment=True
-        )
-        # Clean up temp file after sending (for cloud storage)
-        if is_temp:
-            @response.call_on_close
-            def cleanup():
-                try:
-                    os.unlink(file_path)
-                except:
-                    pass
         return response
-    except FileNotFoundError as e:
-        return jsonify({
-            "error": f"{doc_type} file not found",
-            "filename": filename,
-            "original_name": original_name
-        }), 404
+
+    except FileNotFoundError:
+        return jsonify({"error": f"{doc_type} file not found"}), 404
     except Exception as e:
-        return jsonify({
-            "error": f"Download failed: {str(e)}",
-            "filename": filename
-        }), 500
+        return jsonify({"error": f"Download failed: {str(e)}"}), 500
 
 
 @candidates_bp.route('/<candidate_id>/reprocess', methods=['POST'])

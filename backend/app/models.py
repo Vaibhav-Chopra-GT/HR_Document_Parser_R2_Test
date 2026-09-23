@@ -148,9 +148,9 @@ class Candidate(db.Model):
     documents_requested_at = db.Column(db.DateTime)
     documents_submitted_at = db.Column(db.DateTime)
 
-    # Relationships
-    audit_logs = db.relationship('AuditLog', backref='candidate', lazy='dynamic')
-    email_logs = db.relationship('EmailLog', backref='candidate', lazy='dynamic')
+    # Relationships (cascade delete so logs are removed when candidate is deleted)
+    audit_logs = db.relationship('AuditLog', backref='candidate', lazy='dynamic', cascade='all, delete-orphan')
+    email_logs = db.relationship('EmailLog', backref='candidate', lazy='dynamic', cascade='all, delete-orphan')
 
     def generate_submission_token(self, expiry_days=None):
         """Generate a new submission token. If expiry_days is None, link never expires."""

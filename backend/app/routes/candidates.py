@@ -647,16 +647,17 @@ def delete_candidate(candidate_id):
     if not candidate:
         return jsonify({"error": "Candidate not found or access denied"}), 403
 
-    # Log deletion before removing
-    AuditLogger.log(
-        candidate.id,
-        AuditActions.CANDIDATE_DELETED,
-        'hr',
-        {"name": candidate.name, "email": candidate.email}
-    )
+    try:
+        # Delete related records first (for databases without cascade)
+        from app.models import AuditLog, EmailLog
+        AuditLog.query.filter_by(candidate_id=candidate.id).delete()
+        EmailLog.query.filter_by(candidate_id=candidate.id).delete()
 
-    # Delete the candidate
-    db.session.delete(candidate)
-    db.session.commit()
+        # Delete the candidate
+        db.session.delete(candidate)
+        db.session.commit()
 
-    return jsonify({"success": True, "message": "Candidate deleted"})
+        return jsonify({"success": True, "message": "Candidate deleted"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to delete: {str(e)}"}), 500

@@ -62,11 +62,12 @@ Your emails should be:
 - Professional yet warm
 - Address the candidate by name
 - Request PAN card and Aadhaar card for employment verification
-- Include the secure submission link (as a clickable link)
+- Include the submission link as a PLAIN URL (NOT markdown like [text](url) - just the raw URL)
 - Mention data security and privacy
 - Sign off with "HR Team" and the Hiring Company name
 - Concise (under 150 words)
 - DO NOT say "welcome to [previous company]" or mention joining their old employer
+- DO NOT use markdown formatting - this is a plain text email
 
 Format your response EXACTLY as:
 Subject: [subject line here]

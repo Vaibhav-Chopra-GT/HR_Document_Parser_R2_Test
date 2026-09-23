@@ -6,11 +6,14 @@ load_dotenv()
 
 
 def get_database_url():
-    """Get database URL, fixing Railway's postgres:// to postgresql://"""
+    """Get database URL, fixing Railway's postgres:// to postgresql+pg8000://"""
     url = os.environ.get('DATABASE_URL', 'sqlite:///talently.db')
     # Railway uses postgres:// but SQLAlchemy requires postgresql://
+    # Use pg8000 driver (pure Python, no compilation needed)
     if url.startswith('postgres://'):
-        url = url.replace('postgres://', 'postgresql://', 1)
+        url = url.replace('postgres://', 'postgresql+pg8000://', 1)
+    elif url.startswith('postgresql://') and '+' not in url.split('://')[0]:
+        url = url.replace('postgresql://', 'postgresql+pg8000://', 1)
     return url
 
 

@@ -1,10 +1,12 @@
 """
 Portal API Routes - Candidate document submission endpoints
 """
+import os
+import tempfile
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from app.models import db, Candidate, User
-from app.utils.file_handler import save_file, allowed_file
+from app.utils.file_handler import save_file, allowed_file, get_file_extension
 from app.utils.audit_logger import AuditLogger, AuditActions
 from app.services.document_validator import PANValidator, AadhaarValidator, validate_document_image
 from app.services.email_service import get_email_service
@@ -109,13 +111,27 @@ def submit_documents(token):
             results['errors'].append("PAN: Invalid file type. Use PDF, PNG, or JPG")
         else:
             try:
-                file_info = save_file(pan_file, 'document', f"{candidate.id}_pan")
+                # Save to temp file for validation first
+                ext = get_file_extension(pan_file.filename)
+                temp = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}')
+                pan_file.save(temp.name)
+                temp.close()
 
-                # Validate image
-                validation = validate_document_image(file_info['path'])
+                # Validate image from temp file
+                validation = validate_document_image(temp.name)
+
+                # Clean up temp file
+                try:
+                    os.unlink(temp.name)
+                except:
+                    pass
+
                 if not validation['valid']:
                     results['errors'].append(f"PAN: {validation['error']}")
                 else:
+                    # Reset file position and save to storage
+                    pan_file.seek(0)
+                    file_info = save_file(pan_file, 'document', f"{candidate.id}_pan")
                     candidate.pan_filename = file_info['filename']
                     candidate.pan_original_name = file_info['original_name']
                     results['pan'] = {"uploaded": True, "filename": file_info['original_name']}
@@ -143,13 +159,27 @@ def submit_documents(token):
             results['errors'].append("Aadhaar: Invalid file type. Use PDF, PNG, or JPG")
         else:
             try:
-                file_info = save_file(aadhaar_file, 'document', f"{candidate.id}_aadhaar")
+                # Save to temp file for validation first
+                ext = get_file_extension(aadhaar_file.filename)
+                temp = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}')
+                aadhaar_file.save(temp.name)
+                temp.close()
 
-                # Validate image
-                validation = validate_document_image(file_info['path'])
+                # Validate image from temp file
+                validation = validate_document_image(temp.name)
+
+                # Clean up temp file
+                try:
+                    os.unlink(temp.name)
+                except:
+                    pass
+
                 if not validation['valid']:
                     results['errors'].append(f"Aadhaar: {validation['error']}")
                 else:
+                    # Reset file position and save to storage
+                    aadhaar_file.seek(0)
+                    file_info = save_file(aadhaar_file, 'document', f"{candidate.id}_aadhaar")
                     candidate.aadhaar_filename = file_info['filename']
                     candidate.aadhaar_original_name = file_info['original_name']
                     results['aadhaar'] = {"uploaded": True, "filename": file_info['original_name']}

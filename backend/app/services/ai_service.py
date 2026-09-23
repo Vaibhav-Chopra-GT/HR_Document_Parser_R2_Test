@@ -1,10 +1,17 @@
 """
-AI Service - Provider-agnostic interface for OpenAI and Claude
+AI Service - LangChain-based resume extraction and email generation
 With prompt injection protection and output validation
 """
 from abc import ABC, abstractmethod
 import json
 import os
+from typing import Optional, List
+from pydantic import BaseModel, Field
+
+from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+
 from app.config import Config
 from app.services.guardrails import (
     PromptGuardrails,
@@ -14,7 +21,30 @@ from app.services.guardrails import (
 )
 
 
-# Shared prompts - with injection protection built into instructions
+# Pydantic models for structured output
+class FieldWithConfidence(BaseModel):
+    """A field value with confidence score"""
+    value: Optional[str] = Field(default=None, description="The extracted value")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Confidence score 0-1")
+
+
+class SkillsWithConfidence(BaseModel):
+    """Skills field with confidence"""
+    value: List[str] = Field(default_factory=list, description="List of skills")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Confidence score 0-1")
+
+
+class ResumeExtraction(BaseModel):
+    """Structured resume extraction output"""
+    name: FieldWithConfidence = Field(description="Candidate's full name")
+    email: FieldWithConfidence = Field(description="Email address")
+    phone: FieldWithConfidence = Field(description="Phone number")
+    company: FieldWithConfidence = Field(description="Most recent company")
+    designation: FieldWithConfidence = Field(description="Most recent job title")
+    skills: SkillsWithConfidence = Field(description="Technical and professional skills")
+
+
+# System prompts
 EXTRACTION_SYSTEM_PROMPT = """You are an expert HR data extraction system.
 Extract candidate information from resumes with high accuracy.
 
@@ -29,23 +59,15 @@ For each field, provide:
 1. The extracted value (or null if not found)
 2. A confidence score (0.0-1.0) based on clarity and pattern matching
 
-Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
-{
-    "name": {"value": "Full Name or null", "confidence": 0.0},
-    "email": {"value": "email@example.com or null", "confidence": 0.0},
-    "phone": {"value": "+91-XXXXXXXXXX or null", "confidence": 0.0},
-    "company": {"value": "Most Recent Company or null", "confidence": 0.0},
-    "designation": {"value": "Most Recent Job Title or null", "confidence": 0.0},
-    "skills": {"value": ["skill1", "skill2"] or [], "confidence": 0.0}
-}
-
 Confidence guidelines:
 - 0.9-1.0: Clearly stated, unambiguous, matches expected format
 - 0.7-0.9: Present but slightly ambiguous or informal format
 - 0.5-0.7: Inferred from context, not explicitly stated
 - 0.0-0.5: Guessed or very uncertain
 
-Extract the MOST RECENT company and designation. For skills, extract technical and professional skills."""
+Extract the MOST RECENT company and designation. For skills, extract technical and professional skills.
+
+{format_instructions}"""
 
 
 DOCUMENT_REQUEST_SYSTEM_PROMPT = """You are a professional HR communication assistant.
@@ -89,31 +111,69 @@ class AIService(ABC):
         pass
 
 
-class OpenAIService(AIService):
-    """OpenAI GPT implementation"""
+class LangChainOpenAIService(AIService):
+    """LangChain-based OpenAI implementation"""
 
     def __init__(self):
-        from openai import OpenAI
-        self.client = OpenAI(api_key=Config.OPENAI_API_KEY)
-        self.model = "gpt-4o-mini"  # Cost-effective, switch to gpt-4o for production
+        from langchain_openai import ChatOpenAI
+
+        self.llm = ChatOpenAI(
+            model="gpt-4o-mini",
+            temperature=0.1,
+            api_key=Config.OPENAI_API_KEY
+        )
+        self.creative_llm = ChatOpenAI(
+            model="gpt-4o-mini",
+            temperature=0.7,
+            api_key=Config.OPENAI_API_KEY
+        )
+
+        # Set up extraction chain with JSON output parser
+        self.json_parser = JsonOutputParser(pydantic_object=ResumeExtraction)
+
+        self.extraction_prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template(EXTRACTION_SYSTEM_PROMPT),
+            HumanMessagePromptTemplate.from_template("Extract information from this resume:\n\n{resume_text}")
+        ])
+
+        # Chain: prompt -> llm -> parser
+        self.extraction_chain = (
+            self.extraction_prompt
+            | self.llm
+            | self.json_parser
+        )
+
+        # Email generation chain
+        self.email_prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template(DOCUMENT_REQUEST_SYSTEM_PROMPT),
+            HumanMessagePromptTemplate.from_template("""Write a document request email for this candidate:
+
+Candidate Name: {name}
+Previous Company (from resume): {company}
+Previous Role (from resume): {designation}
+Submission Link: {submission_link}
+Hiring Company (requesting documents): {hr_company}
+HR Email: {hr_email}
+
+Write an email requesting PAN and Aadhaar for the hiring process at {hr_company}. Sign off as "HR Team, {hr_company}".""")
+        ])
+
+        self.email_chain = self.email_prompt | self.creative_llm | StrOutputParser()
 
     def extract_resume_data(self, text: str) -> dict:
         try:
             # Apply guardrails - sanitize and wrap input
             sanitized_text, is_suspicious, warning = sanitize_resume_text(text)
 
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
-                    {"role": "user", "content": f"Extract information from this resume:\n\n{sanitized_text}"}
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.1,
-                max_tokens=1000
-            )
+            # Run the LangChain extraction chain
+            raw_result = self.extraction_chain.invoke({
+                "resume_text": sanitized_text,
+                "format_instructions": self.json_parser.get_format_instructions()
+            })
 
-            raw_result = json.loads(response.choices[0].message.content)
+            # Convert Pydantic model to dict if needed
+            if hasattr(raw_result, 'dict'):
+                raw_result = raw_result.dict()
 
             # Validate and clean output
             is_valid, cleaned_data, error = validate_extraction(raw_result)
@@ -131,32 +191,18 @@ class OpenAIService(AIService):
 
     def generate_document_request(self, candidate_data: dict) -> dict:
         try:
-            hr_name = candidate_data.get('hr_name', 'HR Team')
-            hr_email = candidate_data.get('hr_email', '')
             hr_company = candidate_data.get('hr_company') or 'the verification team'
+            hr_email = candidate_data.get('hr_email', '')
 
-            prompt = f"""Write a document request email for this candidate:
-
-Candidate Name: {candidate_data.get('name', 'Candidate')}
-Previous Company (from resume): {candidate_data.get('company', 'N/A')}
-Previous Role (from resume): {candidate_data.get('designation', 'N/A')}
-Submission Link: {candidate_data.get('submission_link')}
-Hiring Company (requesting documents): {hr_company}
-HR Email: {hr_email if hr_email else 'N/A'}
-
-Write an email requesting PAN and Aadhaar for the hiring process at {hr_company}. Sign off as "HR Team, {hr_company}"."""
-
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": DOCUMENT_REQUEST_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=500
-            )
-
-            content = response.choices[0].message.content
+            # Run the LangChain email generation chain
+            content = self.email_chain.invoke({
+                "name": candidate_data.get('name', 'Candidate'),
+                "company": candidate_data.get('company', 'N/A'),
+                "designation": candidate_data.get('designation', 'N/A'),
+                "submission_link": candidate_data.get('submission_link'),
+                "hr_company": hr_company,
+                "hr_email": hr_email if hr_email else 'N/A'
+            })
 
             # Parse subject and body
             if '---' in content:
@@ -173,84 +219,93 @@ Write an email requesting PAN and Aadhaar for the hiring process at {hr_company}
             return {"success": False, "error": str(e)}
 
 
-class ClaudeService(AIService):
-    """Anthropic Claude implementation"""
+class LangChainClaudeService(AIService):
+    """LangChain-based Anthropic Claude implementation"""
 
     def __init__(self):
-        from anthropic import Anthropic
-        self.client = Anthropic(api_key=Config.ANTHROPIC_API_KEY)
-        self.model = "claude-sonnet-4-20250514"  # Good balance of cost/quality
+        from langchain_anthropic import ChatAnthropic
+
+        self.llm = ChatAnthropic(
+            model="claude-sonnet-4-20250514",
+            temperature=0.1,
+            api_key=Config.ANTHROPIC_API_KEY
+        )
+        self.creative_llm = ChatAnthropic(
+            model="claude-sonnet-4-20250514",
+            temperature=0.7,
+            api_key=Config.ANTHROPIC_API_KEY
+        )
+
+        # Set up extraction chain
+        self.json_parser = JsonOutputParser(pydantic_object=ResumeExtraction)
+
+        self.extraction_prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template(EXTRACTION_SYSTEM_PROMPT),
+            HumanMessagePromptTemplate.from_template("Extract information from this resume:\n\n{resume_text}")
+        ])
+
+        self.extraction_chain = (
+            self.extraction_prompt
+            | self.llm
+            | self.json_parser
+        )
+
+        # Email generation chain
+        self.email_prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template(DOCUMENT_REQUEST_SYSTEM_PROMPT),
+            HumanMessagePromptTemplate.from_template("""Write a document request email for this candidate:
+
+Candidate Name: {name}
+Previous Company (from resume): {company}
+Previous Role (from resume): {designation}
+Submission Link: {submission_link}
+Hiring Company (requesting documents): {hr_company}
+HR Email: {hr_email}
+
+Write an email requesting PAN and Aadhaar for the hiring process at {hr_company}. Sign off as "HR Team, {hr_company}".""")
+        ])
+
+        self.email_chain = self.email_prompt | self.creative_llm | StrOutputParser()
 
     def extract_resume_data(self, text: str) -> dict:
         try:
-            # Apply guardrails - sanitize and wrap input
             sanitized_text, is_suspicious, warning = sanitize_resume_text(text)
 
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=1000,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": f"{EXTRACTION_SYSTEM_PROMPT}\n\nExtract information from this resume:\n\n{sanitized_text}"
-                    }
-                ]
-            )
+            raw_result = self.extraction_chain.invoke({
+                "resume_text": sanitized_text,
+                "format_instructions": self.json_parser.get_format_instructions()
+            })
 
-            content = response.content[0].text
+            if hasattr(raw_result, 'dict'):
+                raw_result = raw_result.dict()
 
-            # Parse JSON from response (Claude might include some text)
-            start = content.find('{')
-            end = content.rfind('}') + 1
-            if start != -1 and end > start:
-                json_str = content[start:end]
-                raw_result = json.loads(json_str)
+            is_valid, cleaned_data, error = validate_extraction(raw_result)
+            if not is_valid:
+                return {"success": False, "error": f"Output validation failed: {error}"}
 
-                # Validate and clean output
-                is_valid, cleaned_data, error = validate_extraction(raw_result)
-                if not is_valid:
-                    return {"success": False, "error": f"Output validation failed: {error}"}
+            result = {"success": True, "data": cleaned_data}
+            if is_suspicious:
+                result["warning"] = warning
 
-                result = {"success": True, "data": cleaned_data}
-                if is_suspicious:
-                    result["warning"] = warning
-
-                return result
-            else:
-                return {"success": False, "error": "Could not parse JSON from response"}
+            return result
 
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     def generate_document_request(self, candidate_data: dict) -> dict:
         try:
-            hr_name = candidate_data.get('hr_name', 'HR Team')
-            hr_email = candidate_data.get('hr_email', '')
             hr_company = candidate_data.get('hr_company') or 'the verification team'
+            hr_email = candidate_data.get('hr_email', '')
 
-            prompt = f"""Write a document request email for this candidate:
+            content = self.email_chain.invoke({
+                "name": candidate_data.get('name', 'Candidate'),
+                "company": candidate_data.get('company', 'N/A'),
+                "designation": candidate_data.get('designation', 'N/A'),
+                "submission_link": candidate_data.get('submission_link'),
+                "hr_company": hr_company,
+                "hr_email": hr_email if hr_email else 'N/A'
+            })
 
-Candidate Name: {candidate_data.get('name', 'Candidate')}
-Previous Company (from resume): {candidate_data.get('company', 'N/A')}
-Previous Role (from resume): {candidate_data.get('designation', 'N/A')}
-Submission Link: {candidate_data.get('submission_link')}
-Hiring Company (requesting documents): {hr_company}
-HR Email: {hr_email if hr_email else 'N/A'}
-
-Write an email requesting PAN and Aadhaar for the hiring process at {hr_company}. Sign off as "HR Team, {hr_company}"."""
-
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=500,
-                system=DOCUMENT_REQUEST_SYSTEM_PROMPT,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
-
-            content = response.content[0].text
-
-            # Parse subject and body
             if '---' in content:
                 parts = content.split('---', 1)
                 subject = parts[0].replace('Subject:', '').strip()
@@ -269,7 +324,6 @@ class MockAIService(AIService):
     """Mock AI service for testing without API calls"""
 
     def extract_resume_data(self, text: str) -> dict:
-        # Extract basic info with regex as fallback
         import re
 
         email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', text)
@@ -316,20 +370,19 @@ HR Team
 
 
 def get_ai_service() -> AIService:
-    """Factory function to get configured AI service"""
+    """Factory function to get configured AI service (LangChain-based)"""
     provider = Config.AI_PROVIDER.lower()
 
-    # Check if API keys are configured
     if provider == 'claude':
         if not Config.ANTHROPIC_API_KEY:
             print("Warning: ANTHROPIC_API_KEY not set, using mock service")
             return MockAIService()
-        return ClaudeService()
+        return LangChainClaudeService()
     elif provider == 'openai':
         if not Config.OPENAI_API_KEY:
             print("Warning: OPENAI_API_KEY not set, using mock service")
             return MockAIService()
-        return OpenAIService()
+        return LangChainOpenAIService()
     elif provider == 'mock':
         return MockAIService()
     else:

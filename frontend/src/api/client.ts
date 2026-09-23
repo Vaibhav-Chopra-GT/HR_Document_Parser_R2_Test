@@ -188,8 +188,9 @@ export const candidatesApi = {
       }
     }
 
-    // Create blob URL and trigger download
-    const blob = new Blob([response.data]);
+    // Create blob with correct MIME type from response headers
+    const contentType = response.headers['content-type'] || 'application/octet-stream';
+    const blob = new Blob([response.data], { type: contentType });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -216,8 +217,9 @@ export const candidatesApi = {
       }
     }
 
-    // Create blob URL and trigger download
-    const blob = new Blob([response.data]);
+    // Create blob with correct MIME type from response headers
+    const contentType = response.headers['content-type'] || 'application/octet-stream';
+    const blob = new Blob([response.data], { type: contentType });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
